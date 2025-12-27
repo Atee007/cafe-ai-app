@@ -102,10 +102,28 @@ elif menu == "📝 ບັນທຶກການຂາຍ":
     st.title("📝 ບັນທຶກການຂາຍໃໝ່")
     with st.form("sale_form"):
         product = st.selectbox("ເລືອກສິນຄ້າ", df['product_detail'].unique())
-        qty = st.number_input("ຈຳນວນ", min_value=1)
-        submitted = st.form_submit_button("ບັນທຶກລາຍການ")
+        qty = st.number_input("ຈຳນວນ", min_value=1, step=1)
+        # ດຶງລາຄາອັດຕະໂນມັດ
+        unit_price = float(df[df['product_detail']==product]['unit_price'].iloc[0])
+        
+        submitted = st.form_submit_button("✅ ບັນທຶກລາຍການຂาย", use_container_width=True)
+        
         if submitted:
-            st.success(f"✅ ບັນທຶກ {product} ຈຳນວນ {qty} ສໍາເລັດ (ລໍຖ້າການອັບເດດຖານຂໍ້ມູນ)")
+            # ສ້າງຂໍ້ມູນແຖວໃໝ່
+            new_data = {
+                'transaction_date': pd.Timestamp.now().strftime('%Y-%m-%d'),
+                'transaction_time': pd.Timestamp.now().strftime('%H:%M:%S'),
+                'product_detail': product,
+                'transaction_qty': qty,
+                'unit_price': unit_price
+            }
+            # ເພີ່ມລົງໃນ DataFrame ແລະ ເຊັບລົງ Excel
+            new_row = pd.DataFrame([new_data])
+            updated_df = pd.concat([df, new_row], ignore_index=True)
+            updated_df.to_excel('Coffee Shop Sales.xlsx', index=False)
+            
+            st.success(f"🎉 ບັນທຶກ {product} ສຳເລັດແລ້ວ! ຍອດລວມ: ฿{qty * unit_price:,.2f}")
+            st.info("ກະລຸນາ Refresh ໜ້າເວັບເພື່ອອັບເດດຕົວເລກໃນ Dashboard")
 
 # 4.4 ໜ້າປະຫວັດການຂາຍ (Both Roles)
 elif menu == "📜 ປະຫວັດການຂາຍ":
