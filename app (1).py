@@ -95,42 +95,52 @@ if menu == "📊 Dashboard":
         st.subheader("🕒 ລາຍການຫຼ້າສຸດ")
         st.dataframe(df.sort_values('id', ascending=False).head(10), use_container_width=True)
 
-# --- 5. ບັນທຶກການຂາຍ (ມີການສະແດງລາຄາ ແລະ ຍອດລວມ) ---
+# --- 5. ບັນທຶກການຂາຍ (ແບບຄຳນວນລາຄາສົດ Real-time) ---
 elif menu == "📝 ບັນທຶກການຂາຍ":
     st.header("🛒 ບັນທຶກການຂາຍ")
     
     # 1. ເລືອກໝວດໝູ່
     cat = st.selectbox("ເລືອກໝວດໝູ່", ["☕ ເຄື່ອງດື່ມ", "🍰 ເບເກີລີ້", "🍽️ ອາຫານ"])
     
-    # 2. ດຶງຂໍ້ມູນສິນຄ້າ ແລະ ລາຄາ
+    # 2. ດຶງຂໍ້ມູນສິນຄ້າ
     prods = df[['product_detail', 'unit_price']].drop_duplicates('product_detail')
     
-    with st.form("sale"):
-        p_name = st.selectbox("ເລືອກສິນຄ້າ", prods['product_detail'])
+    # 3. ເລືອກສິນຄ້າ (ຢູ່ນອກ Form ເພື່ອໃຫ້ມັນ Refresh ຄ່າລາຄາໄດ້ທັນທີ)
+    p_name = st.selectbox("ເລືອກສິນຄ້າ", prods['product_detail'])
+    u_price = float(prods[prods['product_detail'] == p_name]['unit_price'].values[0])
+    
+    # 4. ໃສ່ຈຳນວນ (ຢູ່ນອກ Form ເພື່ອໃຫ້ມັນຄຳນວນຍອດລວມສົດໆ)
+    qty = st.number_input("ຈຳນວນຊິ້ນ", min_value=1, step=1, value=1)
+    
+    # 5. ຄຳນວນຍອດລວມອັດຕະໂນມັດ
+    total_bill = qty * u_price
+    
+    # ສະແດງຜົນລາຄາແບບເນັ້ນໆ
+    st.markdown(f"""
+    <div style="background-color:#f0f2f6; padding:20px; border-radius:10px; border-left: 5px solid #ff4b4b;">
+        <h4 style="margin:0;">💰 ລາຄາຕໍ່ໜ່ວຍ: {u_price:,.2f} ฿</h4>
+        <h2 style="margin:10px 0; color:#ff4b4b;">💵 ຍອດລວມທີ່ຕ້ອງເກັບ: {total_bill:,.2f} ฿</h2>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    st.write("") # ເພີ່ມຍະຫວ່າງ
+    
+    # 6. ປຸ່ມຢືນຢັນ (ໃຊ້ປຸ່ມທຳອິດແທນ Form ເພື່ອຄວາມໄວ)
+    if st.button("✅ ຢືນຢັນການຂາຍ ແລະ ບັນທຶກ", use_container_width=True, type="primary"):
+        conn = sqlite3.connect(DB_NAME)
+        conn.execute("""INSERT INTO sales (transaction_date, transaction_time, product_detail, 
+                        product_category, transaction_qty, unit_price, total_sales) 
+                        VALUES (?,?,?,?,?,?,?)""",
+                     (pd.Timestamp.now().strftime('%Y-%m-%d'), 
+                      pd.Timestamp.now().strftime('%H:%M:%S'), 
+                      p_name, cat, qty, u_price, total_bill))
+        conn.commit()
+        conn.close()
+        st.success(f"🎉 ບັນທຶກສຳເລັດ! ຮັບເງິນທັງໝົດ: {total_bill:,.2f} ฿")
+        # ໃຊ້ເວລາພັກບຶດໜຶ່ງກ່ອນ Refresh
+        st.balloons()
+        st.rerun()
         
-        # ດຶງລາຄາຕໍ່ໜ່ວຍມາສະແດງ
-        u_price = float(prods[prods['product_detail'] == p_name]['unit_price'].values[0])
-        st.info(f"💰 ລາຄາຕໍ່ໜ່ວຍ: {u_price:,.2f} ฿")
-        
-        qty = st.number_input("ຈຳນວນຊິ້ນ", min_value=1, step=1)
-        
-        # ຄຳນວນຍອດລວມໃຫ້ເຫັນກ່ອນບັນທຶກ
-        total_bill = qty * u_price
-        st.markdown(f"### 💵 ຍອດລວມບິນນີ້: `{total_bill:,.2f}` ฿")
-        
-        if st.form_submit_button("✅ ຢືນຢັນການຂາຍ", use_container_width=True):
-            conn = sqlite3.connect(DB_NAME)
-            conn.execute("""INSERT INTO sales (transaction_date, transaction_time, product_detail, 
-                            product_category, transaction_qty, unit_price, total_sales) 
-                            VALUES (?,?,?,?,?,?,?)""",
-                         (pd.Timestamp.now().strftime('%Y-%m-%d'), 
-                          pd.Timestamp.now().strftime('%H:%M:%S'), 
-                          p_name, cat, qty, u_price, total_bill))
-            conn.commit()
-            conn.close()
-            st.success(f"🎉 ບັນທຶກສຳເລັດ! ຮັບເງິນ: {total_bill:,.2f} ฿")
-            st.rerun()
-
 # --- 6. ປະຫວັດການຂາຍ (ເບິ່ງລາຍວັນ) ---
 elif menu == "📜 ປະຫວັດການຂາຍ":
     st.header("📜 ປະຫວັດການຂາຍ")
