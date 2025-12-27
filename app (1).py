@@ -165,7 +165,7 @@ elif menu == "☕ ຈັດການສິນຄ້າ":
             st.success(f"✅ ເພີ່ມເມນູ {new_p} ຮຽບຮ້ອຍແລ້ວ!")
             st.rerun()
 
-# 5.5 ຄາດຄະເນ AI (Forecasting)
+# 5.5 ຄາດຄະເນ AI (Forecasting) - ສະບັບແກ້ໄຂ Error .dayofweek
 elif menu == "🔮 ຄາດຄະເນ AI":
     st.header("🔮 AI Forecasting (7 Days)")
     daily = df.groupby(df['transaction_date'].dt.date)['total_sales'].sum().reset_index()
@@ -173,20 +173,35 @@ elif menu == "🔮 ຄາດຄະເນ AI":
     if len(daily) < 7:
         st.warning("⚠️ ຂໍ້ມູນຍັງບໍ່ພໍສຳລັບການພະຍາກອນ (ຕ້ອງການຢ່າງໜ້ອຍ 7 ວັນ)")
     else:
+        # ດຶງຍອດຂາຍ 7 ວັນຫຼ້າສຸດ
         hist = list(daily['total_sales'].tail(7))
         forecast = []
+        last_date = pd.to_datetime(daily['transaction_date'].max())
+        
         for i in range(1, 8):
-            f_date = daily['transaction_date'].max() + timedelta(days=i)
+            # ແກ້ໄຂຈຸດນີ້: ບວກມື້ ແລະ ປ່ຽນເປັນ Timestamp ເພື່ອໃຊ້ .dayofweek ໄດ້
+            f_date = pd.Timestamp(last_date + timedelta(days=i))
+            
             inp = pd.DataFrame([{
-                'day_of_week': f_date.dayofweek, 'month': f_date.month,
+                'day_of_week': f_date.dayofweek, 
+                'month': f_date.month,
                 'is_weekend': 1 if f_date.dayofweek >= 5 else 0,
-                'sales_lag1': hist[-1], 'sales_lag7': hist[0],
+                'sales_lag1': hist[-1], 
+                'sales_lag7': hist[0],
                 'rolling_mean_7': np.mean(hist)
             }])
+            
+            # ຄາດຄະເນ
             pred = model.predict(inp[features_list])[0]
-            forecast.append({'ວັນທີ': f_date, 'ຍອດຄາດຄະເນ (฿)': round(pred, 2)})
+            forecast.append({'ວັນທີ': f_date.date(), 'ຍອດຄາດຄະເນ (฿)': round(pred, 2)})
+            
+            # ອັບເດດຄ່າ hist ເພື່ອໃຊ້ພະຍາກອນມື້ຕໍ່ໄປ (Rolling Forecast)
             hist.append(pred)
             hist.pop(0)
         
-        st.plotly_chart(px.bar(pd.DataFrame(forecast), x='ວັນທີ', y='ຍອດຄາດຄະເນ (฿)', text_auto='.2s', title="ພະຍາກອນຍອດຂາຍ 7 ວັນລ່ວງໜ້າ"))
-        st.table(pd.DataFrame(forecast))
+        # ສະແດງຜົນ
+        f_df = pd.DataFrame(forecast)
+        st.plotly_chart(px.bar(f_df, x='ວັນທີ', y='ຍອດຄາດຄະເນ (฿)', text_auto='.2s', 
+                               title="ພະຍາກອນຍອດຂາຍ 7 ວັນລ່ວງໜ້າ",
+                               color='ຍອດຄາດຄະເນ (฿)', color_continuous_scale='Viridis'))
+        st.table(f_df)
