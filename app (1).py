@@ -12,7 +12,7 @@ def login():
     user = st.text_input("Username")
     pw = st.text_input("Password", type="password")
     if st.button("Login"):
-        if user == "admin" and pw == "1234": # พี่เปลี่ยน User/Pass ตรงนี้ได้ครับ
+        if user == "mycafe" and pw == "cafe999": # พี่เปลี่ยน User/Pass ตรงนี้ได้ครับ
             st.session_state['logged_in'] = True
             st.rerun()
         else:
