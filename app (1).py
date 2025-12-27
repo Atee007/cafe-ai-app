@@ -95,20 +95,41 @@ if menu == "📊 Dashboard":
         st.subheader("🕒 ລາຍການຫຼ້າສຸດ")
         st.dataframe(df.sort_values('id', ascending=False).head(10), use_container_width=True)
 
-# --- 5. ບັນທຶກການຂາຍ (ແຍກໝວດໝູ່) ---
+# --- 5. ບັນທຶກການຂາຍ (ມີການສະແດງລາຄາ ແລະ ຍອດລວມ) ---
 elif menu == "📝 ບັນທຶກການຂາຍ":
     st.header("🛒 ບັນທຶກການຂາຍ")
-    cat = st.selectbox("ໝວດໝູ່", ["☕ ເຄື່ອງດື່ມ", "🍰 ເບເກີລີ້", "🍽️ ອາຫານ"])
+    
+    # 1. ເລືອກໝວດໝູ່
+    cat = st.selectbox("ເລືອກໝວດໝູ່", ["☕ ເຄື່ອງດື່ມ", "🍰 ເບເກີລີ້", "🍽️ ອາຫານ"])
+    
+    # 2. ດຶງຂໍ້ມູນສິນຄ້າ ແລະ ລາຄາ
     prods = df[['product_detail', 'unit_price']].drop_duplicates('product_detail')
+    
     with st.form("sale"):
-        p_name = st.selectbox("ສິນຄ້າ", prods['product_detail'])
+        p_name = st.selectbox("ເລືອກສິນຄ້າ", prods['product_detail'])
+        
+        # ດຶງລາຄາຕໍ່ໜ່ວຍມາສະແດງ
+        u_price = float(prods[prods['product_detail'] == p_name]['unit_price'].values[0])
+        st.info(f"💰 ລາຄາຕໍ່ໜ່ວຍ: {u_price:,.2f} ฿")
+        
         qty = st.number_input("ຈຳນວນຊິ້ນ", min_value=1, step=1)
-        if st.form_submit_button("✅ ບັນທຶກ"):
-            u_price = prods[prods['product_detail']==p_name]['unit_price'].values[0]
+        
+        # ຄຳນວນຍອດລວມໃຫ້ເຫັນກ່ອນບັນທຶກ
+        total_bill = qty * u_price
+        st.markdown(f"### 💵 ຍອດລວມບິນນີ້: `{total_bill:,.2f}` ฿")
+        
+        if st.form_submit_button("✅ ຢືນຢັນການຂາຍ", use_container_width=True):
             conn = sqlite3.connect(DB_NAME)
-            conn.execute("INSERT INTO sales (transaction_date, transaction_time, product_detail, product_category, transaction_qty, unit_price, total_sales) VALUES (?,?,?,?,?,?,?)",
-                         (pd.Timestamp.now().strftime('%Y-%m-%d'), pd.Timestamp.now().strftime('%H:%M:%S'), p_name, cat, qty, u_price, qty*u_price))
-            conn.commit(); conn.close(); st.success("Success!"); st.rerun()
+            conn.execute("""INSERT INTO sales (transaction_date, transaction_time, product_detail, 
+                            product_category, transaction_qty, unit_price, total_sales) 
+                            VALUES (?,?,?,?,?,?,?)""",
+                         (pd.Timestamp.now().strftime('%Y-%m-%d'), 
+                          pd.Timestamp.now().strftime('%H:%M:%S'), 
+                          p_name, cat, qty, u_price, total_bill))
+            conn.commit()
+            conn.close()
+            st.success(f"🎉 ບັນທຶກສຳເລັດ! ຮັບເງິນ: {total_bill:,.2f} ฿")
+            st.rerun()
 
 # --- 6. ປະຫວັດການຂາຍ (ເບິ່ງລາຍວັນ) ---
 elif menu == "📜 ປະຫວັດການຂາຍ":
