@@ -6,23 +6,18 @@ from datetime import timedelta
 import plotly.express as px
 import os
 
-# --- 1. ການຕັ້ງຄ່າຄວາມປອດໄພ ແລະ ແຍກສິດ (Admin/Staff) ---
+# --- 1. ຕັ້ງຄ່າຄວາມປອດໄພ (Login) ---
 def login():
-    st.markdown("<h2 style='text-align: center;'>🔐 ເຂົ້າສູ່ລະບົບ Cafe AI</h2>", unsafe_allow_html=True)
+    st.markdown("<h2 style='text-align: center;'>🔐 Cafe AI Login</h2>", unsafe_allow_html=True)
     user = st.text_input("ຊື່ຜູ້ໃຊ້ (Username)")
     pw = st.text_input("ລະຫັດຜ່ານ (Password)", type="password")
-    
-    if st.button("ເຂົ້າສູ່ລະບົບ", use_container_width=True):
-        if user == "mycafe" and pw == "cafe999":
+    if st.button("ເຂົ້າສູ່ລະບົບ"):
+        # ໃຊ້ລະຫັດທີ່ພີ່ຕັ້ງໄວ້
+        if user == "mycafe" and pw == "cafe999": 
             st.session_state['logged_in'] = True
-            st.session_state['role'] = 'admin'
-            st.rerun()
-        elif user == "staff" and pw == "1111":
-            st.session_state['logged_in'] = True
-            st.session_state['role'] = 'staff'
             st.rerun()
         else:
-            st.error("❌ ຊື່ຜູ້ໃຊ້ ຫຼື ລະຫັດຜ່ານບໍ່ຖືກຕ້ອງ")
+            st.error("ຊື່ຜູ້ໃຊ້ ຫຼື ລະຫັດຜ່ານບໍ່ຖືກຕ້ອງ!")
 
 if 'logged_in' not in st.session_state:
     st.session_state['logged_in'] = False
@@ -31,10 +26,13 @@ if not st.session_state['logged_in']:
     login()
     st.stop()
 
-# --- 2. ໂຫລດຂໍ້ມູນ ແລະ ໂມເດລ AI ---
+# --- 2. ເລີ່ມສ່ວນຂອງແອັບຫຼັກ ---
+st.set_page_config(page_title="ລະບົບຈັດການຮ້ານກາເຟ", layout="wide")
+
 @st.cache_resource
 def load_assets():
-    df = pd.read_excel('Coffee Shop Sales.xlsx')
+    file_name = 'Coffee Shop Sales.xlsx'
+    df = pd.read_excel(file_name)
     df['total_sales'] = df['transaction_qty'] * df['unit_price']
     df['transaction_date'] = pd.to_datetime(df['transaction_date'])
     model = joblib.load('coffee_model.pkl')
@@ -43,40 +41,80 @@ def load_assets():
 
 df, model, features_list = load_assets()
 
-# --- 3. Sidebar ແຍກເມນູຕາມສິດການໃຊ້ງານ ---
+# --- 3. SIDEBAR ເມນູດ້ານຊ້າຍ ---
 with st.sidebar:
-    st.markdown(f"### 👤 ສະຖານະ: `{st.session_state['role'].upper()}`")
+    st.markdown("<h1 style='text-align: center;'>☕ Café Sales</h1>", unsafe_allow_html=True)
+    st.write("ລະບົບຕິດຕາມຍອດຂາຍອັດສະລິຍະ")
     st.divider()
-    
-    if st.session_state['role'] == 'admin':
-        menu = st.radio("ເມນູຫຼັກ (Admin)", ["📊 ແຜງຄວບຄຸມ", "🔮 ຄາດຄະເນຍອດຂາຍ", "📜 ປະຫວັດການຂາຍ", "📝 ບັນທຶກການຂາຍ"])
-    else:
-        menu = st.radio("ເມນູຫຼັກ (Staff)", ["📝 ບັນທຶກການຂາຍ", "📜 ປະຫວັດການຂາຍ"])
-        
+    menu = st.radio("ເມນູຫຼັກ", ["📊 ແຜງຄວບຄຸມ", "📝 ບັນທຶກການຂາຍ", "📜 ປະຫວັດການຂາຍ", "🔮 ຄາດຄະເນຍອດຂາຍ"])
     st.divider()
     if st.button("🚪 ອອກຈາກລະບົບ"):
         st.session_state['logged_in'] = False
         st.rerun()
+    st.write("ເວີຊັນ 1.0 • ໂຄງການນັກສຶກສາ")
 
-# --- 4. ສ່ວນສະແດງຜົນແຕ່ລະເມນູ ---
+# --- 4. ການຈັດການແຕ່ລະເມນູ ---
 
-# 4.1 ໜ້າແຜງຄວບຄຸມ (Admin Only)
+# --- ໜ້າແຜງຄວບຄຸມ (Dashboard) ---
 if menu == "📊 ແຜງຄວບຄຸມ":
-    st.title("📊 ແຜງຄວບຄຸມຍອດຂາຍ (Admin)")
+    st.header("📊 ສະຫຼຸບຍອດຂາຍ ແລະ ສະຖິຕິລວມ")
     last_date = df['transaction_date'].max()
     today_data = df[df['transaction_date'] == last_date]
-    
-    c1, c2, c3 = st.columns(3)
-    c1.metric("ຍອດຂາຍມື້ນີ້", f"฿{today_data['total_sales'].sum():,.0f}")
-    c2.metric("ຈຳນວນບິນ", f"{len(today_data)}")
-    c3.metric("ສະເລ່ຍຕໍ່ບິນ", f"฿{today_data['total_sales'].mean():,.0f}")
-    
-    st.plotly_chart(px.line(df.groupby('transaction_date')['total_sales'].sum().reset_index(), 
-                             x='transaction_date', y='total_sales', title="ແນວໂນ້ມຍອດຂາຍລວມ"))
+    today_sales = today_data['total_sales'].sum()
+    total_30d = df['total_sales'].tail(1000).sum() 
+    avg_daily = total_30d / 30
 
-# 4.2 ໜ້າຄາດຄະເນຍອດຂາຍ (Admin Only)
+    # ຕົວເລກ 4 ຊ່ອງຫຼັກ
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("ຍອດຂາຍມື້ນີ້", f"฿{today_sales:,.0f}")
+    c2.metric("ລາຍການມື້ນີ້", f"{len(today_data)} ລາຍການ")
+    c3.metric("ຍອດຂາຍລວມ (30 ວັນ)", f"฿{total_30d:,.0f}")
+    c4.metric("ຍອດຂາຍສະເລ່ຍ/ວັນ", f"฿{avg_daily:,.0f}")
+
+    st.markdown("---")
+    col_left, col_right = st.columns([2, 1])
+    
+    with col_left:
+        st.subheader("📋 ລາຍການຂາຍຫຼ້າສຸດຂອງມື້ນີ້")
+        st.dataframe(today_data[['transaction_time', 'product_detail', 'transaction_qty', 'total_sales']]
+                     .sort_values('transaction_time', ascending=False), use_container_width=True)
+    
+    with col_right:
+        st.subheader("🏆 ສິນຄ້າຂາຍດີ")
+        top_items = today_data.groupby('product_detail')['transaction_qty'].sum().nlargest(5)
+        st.table(top_items)
+
+# --- ໜ້າບັນທຶກຂໍ້ມູນ ---
+elif menu == "📝 ບັນທຶກການຂາຍ":
+    st.header("🛒 ບັນທຶກຂໍ້ມູນການຂາຍໃໝ່")
+    st.info("ໃຊ້ສຳລັບເພີ່ມຂໍ້ມູນການຂາຍໜ້າຮ້ານລົງໃນລະບົບ")
+    with st.container(border=True):
+        p_name = st.selectbox("ເລືອກສິນຄ້າ", df['product_detail'].unique())
+        col_q, col_p = st.columns(2)
+        qty = col_q.number_input("ຈຳນວນທີ່ຂາຍ", min_value=1, step=1)
+        price = col_p.number_input("ລາຄາຕໍ່ໜ່ວຍ", value=float(df[df['product_detail']==p_name]['unit_price'].iloc[0]))
+        
+        if st.button("✅ ບັນທຶກລາຍການຂາຍ", type="primary", use_container_width=True):
+            st.success(f"ບັນທຶກ {p_name} ຈຳນວນ {qty} ລາຍການ (ລວມ ฿{qty*price:,.2f}) ສຳເລັດ!")
+
+# --- ໜ້າປະຫວັດຍອດຂາຍ ---
+elif menu == "📜 ປະຫວັດການຂາຍ":
+    st.header("📜 ປະຫວັດການຂາຍຍ້ອນຫຼັງ")
+    st.write("ຄົ້ນຫາ ແລະ ກວດສອບລາຍການຂາຍໃນອະດີດ")
+    
+    search = st.text_input("🔍 ຄົ້ນຫາຊື່ສິນຄ້າ ຫຼື ໝວດໝູ່...")
+    display_df = df.copy()
+    if search:
+        display_df = display_df[display_df['product_detail'].str.contains(search, case=False) | 
+                                display_df['product_category'].str.contains(search, case=False)]
+    
+    st.dataframe(display_df.sort_values('transaction_date', ascending=False).head(500), use_container_width=True)
+
+# --- ໜ້າຄາດຄະເນຍອດຂາຍ ---
 elif menu == "🔮 ຄາດຄະເນຍອດຂາຍ":
-    st.title("🔮 AI Forecast (ຄວາມແມ້ນຍຳ 93.54%)")
+    st.header("🔮 AI Forecast (ຄວາມແມ້ນຍຳ 93.54%)")
+    st.write("ພະຍາກອນຍອດຂາຍລ່ວງໜ້າ 7 ວັນ ດ້ວຍ Machine Learning")
+    
     daily_sales = df.groupby('transaction_date')['total_sales'].sum().reset_index()
     history = list(daily_sales['total_sales'].tail(7))
     forecast = []
@@ -93,23 +131,7 @@ elif menu == "🔮 ຄາດຄະເນຍອດຂາຍ":
         forecast.append({'ວັນທີ': f_date.date(), 'ຍອດຄາດຄະເນ (฿)': round(pred, 2)})
         history.append(pred)
         history.pop(0)
-    
-    st.plotly_chart(px.bar(pd.DataFrame(forecast), x='ວັນທີ', y='ຍອດຄາດຄະເນ (฿)', color='ຍອດຄາດຄະເນ (฿)'))
-    st.table(pd.DataFrame(forecast))
 
-# 4.3 ໜ້າບັນທຶກການຂາຍ (Both Roles)
-elif menu == "📝 ບັນທຶກການຂາຍ":
-    st.title("📝 ບັນທຶກການຂາຍໃໝ່")
-    with st.form("sale_form"):
-        product = st.selectbox("ເລືອກສິນຄ້າ", df['product_detail'].unique())
-        qty = st.number_input("ຈຳນວນ", min_value=1)
-        submitted = st.form_submit_button("ບັນທຶກລາຍການ")
-        if submitted:
-            st.success(f"✅ ບັນທຶກ {product} ຈຳນວນ {qty} ສໍາເລັດ (ລໍຖ້າການອັບເດດຖານຂໍ້ມູນ)")
-
-# 4.4 ໜ້າປະຫວັດການຂາຍ (Both Roles)
-elif menu == "📜 ປະຫວັດການຂາຍ":
-    st.title("📜 ປະຫວັດການຂາຍ")
-    search = st.text_input("🔍 ຄົ້ນຫາຊື່ສິນຄ້າ...")
-    res = df[df['product_detail'].str.contains(search, case=False)] if search else df
-    st.dataframe(res.sort_values('transaction_date', ascending=False).head(100), use_container_width=True)
+    f_df = pd.DataFrame(forecast)
+    st.plotly_chart(px.line(f_df, x='ວັນທີ', y='ຍອດຄາດຄະເນ (฿)', markers=True))
+    st.table(f_df)
