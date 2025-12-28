@@ -24,11 +24,13 @@ def init_db():
                   total_sales REAL)''')
     conn.commit()
     
+    # ຍ້າຍຂໍ້ມູນຈາກ Excel (ຖ້າລັນເທື່ອທຳອິດ)
     c.execute("SELECT COUNT(*) FROM sales")
     if c.fetchone()[0] == 0 and os.path.exists('Coffee Shop Sales.xlsx'):
         try:
             ex_df = pd.read_excel('Coffee Shop Sales.xlsx')
             ex_df['transaction_date'] = pd.to_datetime(ex_df['transaction_date']).dt.strftime('%Y-%m-%d')
+            # ສຸ່ມໝວດໝູ່ສຳລັບຂໍ້ມູນເກົ່າ
             ex_df['product_category'] = "☕ ເຄື່ອງດື່ມ"
             ex_df['total_sales'] = ex_df['transaction_qty'] * ex_df['unit_price']
             ex_df[['transaction_date', 'transaction_time', 'product_detail', 'product_category', 'transaction_qty', 'unit_price', 'total_sales']].to_sql('sales', conn, if_exists='append', index=False)
@@ -68,15 +70,10 @@ if not st.session_state['logged_in']:
 with st.sidebar:
     st.title("☕ Cafe Management")
     st.write(f"Status: `{st.session_state['role'].upper()}`")
-    # ເພີ່ມເມນູ "ຈັດການສິນຄ້າ" ສຳລັບ Admin
-    if st.session_state['role'] == 'admin':
-        menu = st.radio("Menu", ["📊 Dashboard", "📝 ບັນທຶກການຂາຍ", "📜 ປະຫວັດການຂາຍ", "☕ ຈັດການສິນຄ້າ", "🔮 ຄາດຄະເນ AI"])
-    else:
-        menu = st.radio("Menu", ["📝 ບັນທຶກການຂາຍ", "📜 ປະຫວັດການຂາຍ"])
-    
+    menu = st.radio("Menu", ["📊 Dashboard", "📝 ບັນທຶກການຂາຍ", "📜 ປະຫວັດການຂາຍ", "🔮 ຄາດຄະເນ AI"])
     if st.button("🚪 Logout"): st.session_state.clear(); st.rerun()
 
-# --- 4. Dashboard ---
+# --- 4. Dashboard (ລະອຽດຕາມສັ່ງ) ---
 if menu == "📊 Dashboard":
     st.header("📊 Dashboard ພາບລວມ")
     today = df['transaction_date'].max()
@@ -98,44 +95,53 @@ if menu == "📊 Dashboard":
         st.subheader("🕒 ລາຍການຫຼ້າສຸດ")
         st.dataframe(df.sort_values('id', ascending=False).head(10), use_container_width=True)
 
-# --- 5. ບັນທຶກການຂາຍ (ແຍກໝວດໝູ່ & ຄຳນວນສົດ) ---
+# --- 5. ບັນທຶກການຂາຍ (ແບບຄຳນວນລາຄາສົດ Real-time) ---
 elif menu == "📝 ບັນທຶກການຂາຍ":
     st.header("🛒 ບັນທຶກການຂາຍ")
     
-    # ກັ່ນຕອງໝວດໝູ່
-    cat_filter = st.selectbox("📂 ເລືອກໝວດໝູ່", ["☕ ເຄື່ອງດື່ມ", "🍰 ເບເກີລີ້", "🍽️ ອາຫານ"])
+    # 1. ເລືອກໝວດໝູ່
+    cat = st.selectbox("ເລືອກໝວດໝູ່", ["☕ ເຄື່ອງດື່ມ", "🍰 ເບເກີລີ້", "🍽️ ອາຫານ"])
     
-    # ດຶງຂໍ້ມູນສິນຄ້າທີ່ກັ່ນຕອງຕາມໝວດ
-    all_prods = df[['product_detail', 'product_category', 'unit_price']].drop_duplicates('product_detail')
-    filtered_prods = all_prods[all_prods['product_category'] == cat_filter]
+    # 2. ດຶງຂໍ້ມູນສິນຄ້າ
+    prods = df[['product_detail', 'unit_price']].drop_duplicates('product_detail')
     
-    if filtered_prods.empty:
-        st.warning(f"⚠️ ຍັງບໍ່ມີສິນຄ້າໃນໝວດ {cat_filter}")
-    else:
-        p_name = st.selectbox(f"🛍️ ເລືອກສິນຄ້າ ({cat_filter})", filtered_prods['product_detail'])
-        u_price = float(filtered_prods[filtered_prods['product_detail'] == p_name]['unit_price'].values[0])
+    # 3. ເລືອກສິນຄ້າ (ຢູ່ນອກ Form ເພື່ອໃຫ້ມັນ Refresh ຄ່າລາຄາໄດ້ທັນທີ)
+    p_name = st.selectbox("ເລືອກສິນຄ້າ", prods['product_detail'])
+    u_price = float(prods[prods['product_detail'] == p_name]['unit_price'].values[0])
+    
+    # 4. ໃສ່ຈຳນວນ (ຢູ່ນອກ Form ເພື່ອໃຫ້ມັນຄຳນວນຍອດລວມສົດໆ)
+    qty = st.number_input("ຈຳນວນຊິ້ນ", min_value=1, step=1, value=1)
+    
+    # 5. ຄຳນວນຍອດລວມອັດຕະໂນມັດ
+    total_bill = qty * u_price
+    
+    # ສະແດງຜົນລາຄາແບບເນັ້ນໆ
+    st.markdown(f"""
+    <div style="background-color:#f0f2f6; padding:20px; border-radius:10px; border-left: 5px solid #ff4b4b;">
+        <h4 style="margin:0;">💰 ລາຄາຕໍ່ໜ່ວຍ: {u_price:,.2f} ฿</h4>
+        <h2 style="margin:10px 0; color:#ff4b4b;">💵 ຍອດລວມທີ່ຕ້ອງເກັບ: {total_bill:,.2f} ฿</h2>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    st.write("") # ເພີ່ມຍະຫວ່າງ
+    
+    # 6. ປຸ່ມຢືນຢັນ (ໃຊ້ປຸ່ມທຳອິດແທນ Form ເພື່ອຄວາມໄວ)
+    if st.button("✅ ຢືນຢັນການຂາຍ ແລະ ບັນທຶກ", use_container_width=True, type="primary"):
+        conn = sqlite3.connect(DB_NAME)
+        conn.execute("""INSERT INTO sales (transaction_date, transaction_time, product_detail, 
+                        product_category, transaction_qty, unit_price, total_sales) 
+                        VALUES (?,?,?,?,?,?,?)""",
+                     (pd.Timestamp.now().strftime('%Y-%m-%d'), 
+                      pd.Timestamp.now().strftime('%H:%M:%S'), 
+                      p_name, cat, qty, u_price, total_bill))
+        conn.commit()
+        conn.close()
+        st.success(f"🎉 ບັນທຶກສຳເລັດ! ຮັບເງິນທັງໝົດ: {total_bill:,.2f} ฿")
+        # ໃຊ້ເວລາພັກບຶດໜຶ່ງກ່ອນ Refresh
+        st.balloons()
+        st.rerun()
         
-        qty = st.number_input("ຈຳນວນຊິ້ນ", min_value=1, step=1, value=1)
-        total_bill = qty * u_price
-        
-        st.markdown(f"""
-        <div style="background-color:#f0f2f6; padding:20px; border-radius:10px; border-left: 5px solid #ff4b4b;">
-            <h4 style="margin:0;">💰 ລາຄາຕໍ່ໜ່ວຍ: {u_price:,.2f} ฿</h4>
-            <h2 style="margin:10px 0; color:#ff4b4b;">💵 ຍອດລວມທີ່ຕ້ອງເກັບ: {total_bill:,.2f} ฿</h2>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        if st.button("✅ ຢືນຢັນການຂາຍ", use_container_width=True, type="primary"):
-            conn = sqlite3.connect(DB_NAME)
-            conn.execute("""INSERT INTO sales (transaction_date, transaction_time, product_detail, 
-                            product_category, transaction_qty, unit_price, total_sales) 
-                            VALUES (?,?,?,?,?,?,?)""",
-                         (pd.Timestamp.now().strftime('%Y-%m-%d'), pd.Timestamp.now().strftime('%H:%M:%S'), 
-                          p_name, cat_filter, qty, u_price, total_bill))
-            conn.commit(); conn.close()
-            st.success("🎉 ບັນທຶກສຳເລັດ!"); st.balloons(); st.rerun()
-
-# --- 6. ປະຫວັດການຂາຍ ---
+# --- 6. ປະຫວັດການຂາຍ (ເບິ່ງລາຍວັນ) ---
 elif menu == "📜 ປະຫວັດການຂາຍ":
     st.header("📜 ປະຫວັດການຂາຍ")
     d_search = st.date_input("ເລືອກວັນທີ", df['transaction_date'].max())
@@ -153,22 +159,8 @@ elif menu == "📜 ປະຫວັດການຂາຍ":
             conn.commit(); conn.close(); st.rerun()
     st.dataframe(filtered.sort_values('id', ascending=False), use_container_width=True)
 
-# --- 7. ຈັດການສິນຄ້າ (Admin Only) ---
-elif menu == "☕ ຈັດການສິນຄ້າ":
-    st.header("☕ ຈັດການເມນູສິນຄ້າ")
-    with st.expander("➕ ເພີ່ມສິນຄ້າໃໝ່"):
-        new_cat = st.selectbox("ເລືອກໝວດໝູ່", ["☕ ເຄື່ອງດື່ມ", "🍰 ເບເກີລີ້", "🍽️ ອາຫານ"])
-        new_p = st.text_input("ຊື່ສິນຄ້າ")
-        new_price = st.number_input("ລາຄາຕໍ່ໜ່ວຍ", min_value=0.0)
-        if st.button("💾 ບັນທຶກ"):
-            if new_p:
-                conn = sqlite3.connect(DB_NAME)
-                conn.execute("INSERT INTO sales (transaction_date, transaction_time, product_detail, product_category, transaction_qty, unit_price, total_sales) VALUES (?,?,?,?,?,?,?)",
-                             (pd.Timestamp.now().strftime('%Y-%m-%d'), '00:00:00', new_p, new_cat, 0, new_price, 0))
-                conn.commit(); conn.close(); st.success("ເພີ່ມສຳເລັດ!"); st.rerun()
-
-# --- 8. AI Forecasting ---
-elif menu == "🔮 ຄາດຄເນ AI":
+# --- 7. AI Forecasting (ມີ %, ສະເລ່ຍ 7 ວັນ) ---
+elif menu == "🔮 ຄາດຄະເນ AI":
     st.header("🔮 ວິເຄາະແນວໂນ້ມ AI")
     daily = df.groupby(df['transaction_date'].dt.date)['total_sales'].sum().reset_index()
     avg_7p = daily['total_sales'].tail(7).mean()
