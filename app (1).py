@@ -68,7 +68,6 @@ if not st.session_state['logged_in']:
 with st.sidebar:
     st.title("☕ Cafe Management")
     st.write(f"Status: `{st.session_state['role'].upper()}`")
-    # ເພີ່ມເມນູ "ຈັດການສິນຄ້າ" ສຳລັບ Admin
     if st.session_state['role'] == 'admin':
         menu = st.radio("Menu", ["📊 Dashboard", "📝 ບັນທຶກການຂາຍ", "📜 ປະຫວັດການຂາຍ", "☕ ຈັດການສິນຄ້າ", "🔮 ຄາດຄະເນ AI"])
     else:
@@ -76,18 +75,25 @@ with st.sidebar:
     
     if st.button("🚪 Logout"): st.session_state.clear(); st.rerun()
 
-# --- 4. Dashboard ---
+# --- 4. Dashboard (ເພີ່ມ Automation ແຈ້ງເຕືອນຍອດຂາຍ) ---
 if menu == "📊 Dashboard":
     st.header("📊 Dashboard ພາບລວມ")
     today = df['transaction_date'].max()
     today_sales = df[df['transaction_date'] == today]['total_sales'].sum()
     sales_30d = df[df['transaction_date'] > (today - timedelta(days=30))]['total_sales'].sum()
+    avg_daily = sales_30d / 30 if sales_30d > 0 else 0
+    
+    # 🔔 [Automation] ແຈ້ງເຕືອນຍອດຂາຍມື້ນີ້
+    if today_sales < avg_daily and today_sales > 0:
+        st.warning(f"⚠️ **ແຈ້ງເຕືອນ:** ຍອດຂາຍມື້ນີ້ (฿{today_sales:,.0f}) ຕ່ຳກວ່າຄ່າສະເລ່ຍລາຍວັນ (฿{avg_daily:,.0f}).")
+    elif today_sales > avg_daily * 1.2:
+        st.success(f"🎉 **ຂ່າວດີ:** ຍອດຂາຍມື້ນີ້ສູງກວ່າຄ່າສະເລ່ຍເຖິງ 20%!")
     
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("ຍອດມື້ນີ້", f"฿{today_sales:,.0f}")
     c2.metric("ບິນມື້ນີ້", f"{len(df[df['transaction_date'] == today])}")
     c3.metric("ຍອດລວມ 30 ວັນ", f"฿{sales_30d:,.0f}")
-    c4.metric("ສະເລ່ຍ/ວັນ", f"฿{(sales_30d/30):,.0f}")
+    c4.metric("ສະເລ່ຍ/ວັນ", f"฿{avg_daily:,.0f}")
 
     st.divider()
     col_l, col_r = st.columns(2)
@@ -98,14 +104,10 @@ if menu == "📊 Dashboard":
         st.subheader("🕒 ລາຍການຫຼ້າສຸດ")
         st.dataframe(df.sort_values('id', ascending=False).head(10), use_container_width=True)
 
-# --- 5. ບັນທຶກການຂາຍ (ແຍກໝວດໝູ່ & ຄຳນວນສົດ) ---
+# --- 5. ບັນທຶກການຂາຍ ---
 elif menu == "📝 ບັນທຶກການຂາຍ":
     st.header("🛒 ບັນທຶກການຂາຍ")
-    
-    # ກັ່ນຕອງໝວດໝູ່
     cat_filter = st.selectbox("📂 ເລືອກໝວດໝູ່", ["☕ ເຄື່ອງດື່ມ", "🍰 ເບເກີລີ້", "🍽️ ອາຫານ"])
-    
-    # ດຶງຂໍ້ມູນສິນຄ້າທີ່ກັ່ນຕອງຕາມໝວດ
     all_prods = df[['product_detail', 'product_category', 'unit_price']].drop_duplicates('product_detail')
     filtered_prods = all_prods[all_prods['product_category'] == cat_filter]
     
@@ -114,7 +116,6 @@ elif menu == "📝 ບັນທຶກການຂາຍ":
     else:
         p_name = st.selectbox(f"🛍️ ເລືອກສິນຄ້າ ({cat_filter})", filtered_prods['product_detail'])
         u_price = float(filtered_prods[filtered_prods['product_detail'] == p_name]['unit_price'].values[0])
-        
         qty = st.number_input("ຈຳນວນຊິ້ນ", min_value=1, step=1, value=1)
         total_bill = qty * u_price
         
@@ -140,12 +141,10 @@ elif menu == "📜 ປະຫວັດການຂາຍ":
     st.header("📜 ປະຫວັດການຂາຍ")
     d_search = st.date_input("ເລືອກວັນທີ", df['transaction_date'].max())
     filtered = df[df['transaction_date'].dt.date == d_search]
-    
     m1, m2, m3 = st.columns(3)
     m1.metric("ບິນ", len(filtered))
     m2.metric("ຊິ້ນ", filtered['transaction_qty'].sum())
     m3.metric("ຍອດລວມ", f"฿{filtered['total_sales'].sum():,.0f}")
-    
     if st.session_state['role'] == 'admin':
         del_id = st.number_input("ID ທີ່ຕ້ອງການລຶບ", min_value=1, step=1)
         if st.button("🗑️ ລຶບ", type="primary"):
@@ -153,7 +152,7 @@ elif menu == "📜 ປະຫວັດການຂາຍ":
             conn.commit(); conn.close(); st.rerun()
     st.dataframe(filtered.sort_values('id', ascending=False), use_container_width=True)
 
-# --- 7. ຈັດການສິນຄ້າ (Admin Only) ---
+# --- 7. ຈັດການສິນຄ້າ ---
 elif menu == "☕ ຈັດການສິນຄ້າ":
     st.header("☕ ຈັດການເມນູສິນຄ້າ")
     with st.expander("➕ ເພີ່ມສິນຄ້າໃໝ່"):
@@ -167,69 +166,45 @@ elif menu == "☕ ຈັດການສິນຄ້າ":
                              (pd.Timestamp.now().strftime('%Y-%m-%d'), '00:00:00', new_p, new_cat, 0, new_price, 0))
                 conn.commit(); conn.close(); st.success("ເພີ່ມສຳເລັດ!"); st.rerun()
 
-# --- 8. AI Forecasting (ປັບປຸງໃໝ່: ສະແດງອັນດຽວ ເປະ 100%) ---
+# --- 8. AI Forecasting (ເພີ່ມ Automation ແຈ້ງເຕືອນແນວໂນ້ມ AI) ---
 elif menu == "🔮 ຄາດຄະເນ AI":
     st.header("🔮 ວິເຄາະແນວໂນ້ມ ແລະ ຄາດຄະເນຍອດຂາຍ")
-    
     daily_sales = df.groupby(df['transaction_date'].dt.date)['total_sales'].sum().reset_index()
     
     if len(daily_sales) < 7:
         st.warning("⚠️ ຂໍ້ມູນຍັງບໍ່ພໍສຳລັບການວິເຄາະແນວໂນ້ມ (ຕ້ອງການຂໍ້ມູນຢ່າງໜ້ອຍ 7 ວັນ)")
     else:
-        # 1. ຄຳນວນຄ່າສະເລ່ຍ 7 ວັນຜ່ານມາ
         avg_past_7 = daily_sales['total_sales'].tail(7).mean()
-        
-        # 2. AI ພະຍາກອນ 7 ວັນຂ້າງໜ້າ
         hist = list(daily_sales['total_sales'].tail(7))
         forecast_values = []
         last_date = pd.to_datetime(daily_sales['transaction_date'].max())
         
         for i in range(1, 8):
             f_date = pd.Timestamp(last_date + timedelta(days=i))
-            inp = pd.DataFrame([{
-                'day_of_week': f_date.dayofweek, 
-                'month': f_date.month,
-                'is_weekend': 1 if f_date.dayofweek >= 5 else 0,
-                'sales_lag1': hist[-1], 
-                'sales_lag7': hist[0],
-                'rolling_mean_7': np.mean(hist)
-            }])
+            inp = pd.DataFrame([{'day_of_week': f_date.dayofweek, 'month': f_date.month, 'is_weekend': 1 if f_date.dayofweek >= 5 else 0, 'sales_lag1': hist[-1], 'sales_lag7': hist[0], 'rolling_mean_7': np.mean(hist)}])
             pred = model.predict(inp[features_list])[0]
-            forecast_values.append(pred)
-            hist.append(pred)
-            hist.pop(0)
+            forecast_values.append(pred); hist.append(pred); hist.pop(0)
             
         avg_future_7 = np.mean(forecast_values)
         diff_percent = ((avg_future_7 - avg_past_7) / avg_past_7) * 100
         trend_label = "ເພີ່ມຂຶ້ນ 📈" if diff_percent > 0 else "ຫຼຸດລົງ 📉"
 
-        # 3. ສະແດງ Metrics (ສ່ວນສຫຼຸບຕົວເລກ)
+        # 🔔 [Automation] ແຈ້ງເຕືອນແນວໂນ້ມຈາກ AI
+        if diff_percent < -5:
+            st.error(f"🚨 **AI ເຕືອນ:** ແນວໂນ້ມ 7 ວັນຂ້າງໜ້າຈະຫຼຸດລົງ {abs(diff_percent):.1f}%. ລອງຫາແນວທາງກະຕຸ້ນຍອດຂາຍ!")
+        elif diff_percent > 5:
+            st.info(f"📈 **AI ວິເຄາະ:** ຍອດຂາຍມີແນວໂນ້ມຈະເພີ່ມຂຶ້ນ {diff_percent:.1f}%!")
+
         st.markdown("### 📊 ສຫຼຸບການວິເຄາະແນວໂນ້ມ")
         col1, col2, col3 = st.columns(3)
         col1.metric("ສະເລ່ຍ 7 ວັນຜ່ານມາ", f"฿{avg_past_7:,.2f}")
-        col2.metric("ສະເລ່ຍ 7 ວັນຂ້າງໜ້າ (AI)", f"฿{avg_future_7:,.2f}", 
-                  delta=f"{diff_percent:.1f}% {trend_label}")
+        col2.metric("ສະເລ່ຍ 7 ວັນຂ້າງໜ້າ (AI)", f"฿{avg_future_7:,.2f}", delta=f"{diff_percent:.1f}% {trend_label}")
         col3.metric("ແນວໂນ້ມການຂາຍ", trend_label)
 
         st.divider()
-
-        # 4. ສ້າງ DataFrame ສຳລັບກາຟ
-        f_df = pd.DataFrame({
-            'ວັນທີ': [(last_date + timedelta(days=i)).date() for i in range(1, 8)],
-            'ຍອດຄາດຄະເນ (฿)': [round(v, 2) for v in forecast_values]
-        })
-        
-        # 5. ສະແດງກາຟເສັ້ນອັນດຽວ (ແກ້ໄຂ Error ແລະ ຊື່ Column ແລ້ວ)
+        f_df = pd.DataFrame({'ວັນທີ': [(last_date + timedelta(days=i)).date() for i in range(1, 8)], 'ຍອດຄາດຄະເນ (฿)': [round(v, 2) for v in forecast_values]})
         st.subheader("📅 ເສັ້ນສະແດງການຄາດຄະເນ 7 ວັນລ່ວງໜ້າ")
-        fig = px.line(f_df, 
-                      x='ວັນທີ', 
-                      y='ຍອດຄາດຄະເນ (฿)', 
-                      markers=True, 
-                      text='ຍອດຄາດຄະເນ (฿)', 
-                      title="ແນວໂນ້ມຍອດຂາຍໃນອະນາຄົດ (Forecast)")
-        
+        fig = px.line(f_df, x='ວັນທີ', y='ຍອດຄາດຄະເນ (฿)', markers=True, text='ຍອດຄາດຄະເນ (฿)', title="ແນວໂນ້ມຍອດຂາຍໃນອະນາຄົດ")
         fig.update_traces(textposition="top center")
         st.plotly_chart(fig, use_container_width=True)
-        
-        # 6. ສະແດງຕາຕະລາງຂໍ້ມູນ
         st.table(f_df)
