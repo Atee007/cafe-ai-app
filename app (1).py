@@ -167,28 +167,68 @@ elif menu == "☕ ຈັດການສິນຄ້າ":
                              (pd.Timestamp.now().strftime('%Y-%m-%d'), '00:00:00', new_p, new_cat, 0, new_price, 0))
                 conn.commit(); conn.close(); st.success("ເພີ່ມສຳເລັດ!"); st.rerun()
 
-# --- 8. AI Forecasting ---
-elif menu == "🔮 ຄາດຄເນ AI":
-    st.header("🔮 ວິເຄາະແນວໂນ້ມ AI")
-    daily = df.groupby(df['transaction_date'].dt.date)['total_sales'].sum().reset_index()
-    avg_7p = daily['total_sales'].tail(7).mean()
+# --- 8. AI Forecasting (ມີຄ່າສະເລ່ຍ 7 ວັນ ແລະ % ແນວໂນ້ມ ເປະໆ) ---
+elif menu == "🔮 ຄາດຄະເນ AI":
+    st.header("🔮 ວິເຄາະແນວໂນ້ມ ແລະ ຄາດຄະເນຍອດຂາຍ")
     
-    hist = list(daily['total_sales'].tail(7))
-    forecast = []
-    last_d = pd.to_datetime(daily['transaction_date'].max())
+    # 1. ກຽມຂໍ້ມູນຍອດຂາຍລາຍວັນ
+    daily_sales = df.groupby(df['transaction_date'].dt.date)['total_sales'].sum().reset_index()
     
-    for i in range(1, 8):
-        f_date = pd.Timestamp(last_d + timedelta(days=i))
-        inp = pd.DataFrame([{'day_of_week':f_date.dayofweek, 'month':f_date.month, 'is_weekend':1 if f_date.dayofweek >=5 else 0, 'sales_lag1':hist[-1], 'sales_lag7':hist[0], 'rolling_mean_7':np.mean(hist)}])
-        pred = model.predict(inp[features_list])[0]
-        forecast.append(pred); hist.append(pred); hist.pop(0)
-    
-    avg_7f = np.mean(forecast)
-    diff = ((avg_7f - avg_7p) / avg_7p) * 100
-    
-    a1, a2, a3 = st.columns(3)
-    a1.metric("ສະເລ່ຍ 7 ວັນຜ່ານມາ", f"฿{avg_7p:,.2f}")
-    a2.metric("ສະເລ່ຍ 7 ວັນຂ້າງໜ້າ", f"฿{avg_7f:,.2f}")
-    a3.metric("ແນວໂນ້ມ", f"{abs(diff):.1f}%", delta=("ເພີ່ມຂຶ້ນ" if diff > 0 else "ຫຼຸດລົງ"))
-    
-    st.plotly_chart(px.bar(x=[(last_d + timedelta(days=i)).date() for i in range(1,8)], y=forecast, title="ພະຍາກອນ 7 ວັນລ່ວງໜ້າ"))
+    if len(daily_sales) < 7:
+        st.warning("⚠️ ຂໍ້ມູນຍັງບໍ່ພໍສຳລັບການວິເຄາະແນວໂນ້ມ (ຕ້ອງການຂໍ້ມູນຢ່າງໜ້ອຍ 7 ວັນ)")
+        st.info(f"ຕອນນີ້ມີຂໍ້ມູນພຽງ: {len(daily_sales)} ວັນ")
+    else:
+        # --- ສ່ວນຄຳນວນຄ່າສະເລ່ຍ 7 ວັນຜ່ານມາ ---
+        avg_past_7 = daily_sales['total_sales'].tail(7).mean()
+        
+        # --- ສ່ວນ AI ພະຍາກອນ 7 ວັນຂ້າງໜ້າ ---
+        hist = list(daily_sales['total_sales'].tail(7))
+        forecast_values = []
+        last_date = pd.to_datetime(daily_sales['transaction_date'].max())
+        
+        for i in range(1, 8):
+            f_date = pd.Timestamp(last_date + timedelta(days=i))
+            # ກຽມຂໍ້ມູນ Input ໃຫ້ AI
+            inp = pd.DataFrame([{
+                'day_of_week': f_date.dayofweek, 
+                'month': f_date.month,
+                'is_weekend': 1 if f_date.dayofweek >= 5 else 0,
+                'sales_lag1': hist[-1], 
+                'sales_lag7': hist[0],
+                'rolling_mean_7': np.mean(hist)
+            }])
+            pred = model.predict(inp[features_list])[0]
+            forecast_values.append(pred)
+            hist.append(pred)
+            hist.pop(0)
+            
+        # --- ສ່ວນຄຳນວນຄ່າສະເລ່ຍ 7 ວັນຂ້າງໜ້າ ---
+        avg_future_7 = np.mean(forecast_values)
+        
+        # --- ສ່ວນໄລ່ % ແນວໂນ້ມ (Trend) ---
+        diff_percent = ((avg_future_7 - avg_past_7) / avg_past_7) * 100
+        trend_label = "ເພີ່ມຂຶ້ນ 📈" if diff_percent > 0 else "ຫຼຸດລົງ 📉"
+
+        # 🎯 ສະແດງຜົນຕົວເລກສະເລ່ຍ ແລະ ແນວໂນ້ມ (ຕາມທີ່ອ້າຍຕ້ອງການ)
+        st.markdown("### 📊 ສຫຼຸບການວິເຄາະແນວໂນ້ມ")
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            st.metric("ສະເລ່ຍ 7 ວັນຜ່ານມາ", f"฿{avg_past_7:,.2f}")
+        with col2:
+            st.metric("ສະເລ່ຍ 7 ວັນຂ้างໜ້າ (AI)", f"฿{avg_future_7:,.2f}", 
+                      delta=f"{diff_percent:.1f}% {trend_label}")
+        with col3:
+            st.metric("ແນວໂນ້ມການຂາຍ", trend_label)
+
+        st.divider()
+
+        # 📅 ສະແດງກາຟ ແລະ ຕາຕະລາງລາຍວັນ
+        st.subheader("📅 ລາຍລະອຽດການຄາດຄະເນ 7 ວັນລ່ວງໜ້າ")
+        f_df = pd.DataFrame({
+            'ວັນທີ': [(last_date + timedelta(days=i)).date() for i in range(1, 8)],
+            'ຍອດຄາດຄະເນ (฿)': [round(v, 2) for v in forecast_values]
+        })
+        
+        st.plotly_chart(px.line(f_df, x='ວັນທີ', y='ຍອດຄາດຄະເນ (฿)', markers=True, text="ຍອດຄາດຄເນ (฿)"), use_container_width=True)
+        st.table(f_df)
