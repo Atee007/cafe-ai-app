@@ -110,19 +110,47 @@ with st.sidebar:
 # --- [6. DASHBOARD] ---
 if menu == "📊 Dashboard":
     st.markdown("<h2 style='color: #1e293b;'>📊 ພາບລວມທຸລະກິດ ແລະ ກຳໄລ</h2>", unsafe_allow_html=True)
-    today = df['transaction_date'].max()
-    today_df = df[df['transaction_date'] == today]
-    today_sales = today_df['total_sales'].sum()
-    today_profit = today_df['profit'].sum()
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("ຍອດຂາຍມື້ນີ້", f"฿{today_sales:,.0f}")
-    c2.metric("ກຳໄລມື້ນີ້", f"฿{today_profit:,.0f}")
-    c3.metric("ຍອດລວມ 30 ວັນ", f"฿{df['total_sales'].sum():,.0f}")
-    c4.metric("ກຳໄລລວມ", f"฿{df['profit'].sum():,.0f}")
     
-    st.subheader("💰 ສິນຄ້າທີ່ເຮັດກຳໄລສູງສຸດ")
-    profit_data = df.groupby('product_detail')['profit'].sum().nlargest(5).reset_index()
-    st.plotly_chart(px.bar(profit_data, x='profit', y='product_detail', orientation='h', template='plotly_white'), use_container_width=True)
+    if df.empty:
+        st.info("ຍັງບໍ່ມີຂໍ້ມູນການຂາຍໃນລະບົບ")
+    else:
+        # --- ແກ້ໄຂ Error ບ່ອນນີ້: ບັງຄັບໃຫ້ profit ເປັນຕົວເລກ ແລະ ລຶບຄ່າວ່າງອອກ ---
+        df['profit'] = pd.to_numeric(df['profit'], errors='coerce').fillna(0)
+        
+        today = df['transaction_date'].max()
+        today_df = df[df['transaction_date'] == today]
+        
+        today_sales = today_df['total_sales'].sum()
+        today_profit = today_df['profit'].sum()
+        
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("ຍອດຂາຍມື້ນີ້", f"฿{today_sales:,.0f}")
+        c2.metric("ກຳໄລມື້ນີ້", f"฿{today_profit:,.0f}")
+        c3.metric("ຍອດລວມທັງໝົດ", f"฿{df['total_sales'].sum():,.0f}")
+        c4.metric("ກຳໄລລວມທັງໝົດ", f"฿{df['profit'].sum():,.0f}")
+        
+        st.markdown("<br>", unsafe_allow_html=True)
+        
+        # ສ້າງ Graph ໂດຍກວດສອບກ່ອນວ່າມີຂໍ້ມູນບໍ່
+        st.subheader("💰 5 ອັນດັບສິນຄ້າທີ່ເຮັດ 'ກຳໄລ' ສູງສຸດ")
+        
+        # ກຸ່ມຂໍ້ມູນ ແລະ ກວດສອບຊ້ຳອີກບາດໜຶ່ງ
+        profit_sum = df.groupby('product_detail')['profit'].sum().reset_index()
+        
+        if not profit_sum.empty:
+            # ໃຊ້ nlargest ຫຼັງຈາກທີ່ເຮົາໝັ້ນໃຈແລ້ວວ່າ profit ເປັນຕົວເລກ
+            top_profit = profit_sum.nlargest(5, 'profit')
+            
+            fig_profit = px.bar(top_profit, x='profit', y='product_detail', orientation='h', 
+                             color='profit', color_continuous_scale='GnBu', 
+                             labels={'profit': 'ກຳໄລ (฿)', 'product_detail': 'ຊື່ສິນຄ້າ'},
+                             template='plotly_white')
+            st.plotly_chart(fig_profit, use_container_width=True)
+        else:
+            st.write("ຍັງບໍ່ມີຂໍ້ມູນກຳໄລພໍທີ່ຈະສ້າງກາຟ")
+
+    with st.expander("🕒 10 ລາຍການຂາຍຫຼ້າສຸດ"):
+        st.dataframe(df.sort_values('id', ascending=False).head(10)[['transaction_date', 'product_detail', 'total_sales', 'profit']], use_container_width=True)
 
 # --- [7. 📝 ບັນທຶກການຂາຍ (POS STYLE)] ---
 elif menu == "📝 ບັນທຶກການຂາຍ":
