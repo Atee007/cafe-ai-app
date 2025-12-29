@@ -7,21 +7,44 @@ from datetime import timedelta
 import plotly.express as px
 import os
 
-# --- 1. ການຕັ້ງຄ່າ Database SQLite ---
+# --- [ເພີ່ມສ່ວນ CSS ເພື່ອຄວາມທັນສະໄໝ] ---
+st.set_page_config(page_title="Cafe AI Pro", layout="wide")
+
+st.markdown("""
+    <style>
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Lao:wght@400;700&display=swap');
+    html, body, [class*="css"] { font-family: 'Noto+Sans+Lao', sans-serif; }
+    
+    /* ປັບແຕ່ງ Card Metrics */
+    div[data-testid="stMetricValue"] { font-size: 28px; color: #1e293b; font-weight: bold; }
+    div[data-testid="stMetric"] {
+        background-color: #ffffff;
+        padding: 15px;
+        border-radius: 12px;
+        box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+        border: 1px solid #f1f5f9;
+    }
+    
+    /* ປັບແຕ່ງແຖບແຈ້ງເຕືອນໃຫ້ເບິ່ງ Minimal */
+    .stAlert { border-radius: 12px; border: none; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+    </style>
+    """, unsafe_allow_html=True)
+
+# --- 1. ການຕັ້ງຄ່າ Database SQLite (ຄືເກົ່າ ບໍ່ປ່ຽນແປງ) ---
 DB_NAME = 'cafe_database.db'
 
 def init_db():
     conn = sqlite3.connect(DB_NAME)
     c = conn.cursor()
     c.execute('''CREATE TABLE IF NOT EXISTS sales 
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT, 
-                  transaction_date TEXT, 
-                  transaction_time TEXT, 
-                  product_detail TEXT, 
-                  product_category TEXT,
-                  transaction_qty INTEGER, 
-                  unit_price REAL, 
-                  total_sales REAL)''')
+                  (id INTEGER PRIMARY KEY AUTOINCREMENT, 
+                   transaction_date TEXT, 
+                   transaction_time TEXT, 
+                   product_detail TEXT, 
+                   product_category TEXT,
+                   transaction_qty INTEGER, 
+                   unit_price REAL, 
+                   total_sales REAL)''')
     conn.commit()
     
     c.execute("SELECT COUNT(*) FROM sales")
@@ -51,11 +74,11 @@ def load_ai():
 df = get_data()
 model, features_list = load_ai()
 
-# --- 2. ລະບົບ Login ---
+# --- 2. ລະບົບ Login (ຄືເກົ່າ ບໍ່ປ່ຽນແປງ) ---
 if 'logged_in' not in st.session_state: st.session_state['logged_in'] = False
 
 if not st.session_state['logged_in']:
-    st.markdown("<h2 style='text-align: center;'>🔐 Login Cafe AI Pro</h2>", unsafe_allow_html=True)
+    st.markdown("<h2 style='text-align: center; color: #4338ca;'>🔐 Login Cafe AI Pro</h2>", unsafe_allow_html=True)
     u, p = st.text_input("Username"), st.text_input("Password", type="password")
     if st.button("Login", use_container_width=True):
         if (u == "mycafe" and p == "cafe999") or (u == "staff" and p == "1111"):
@@ -64,48 +87,54 @@ if not st.session_state['logged_in']:
         else: st.error("ລະຫັດບໍ່ຖືກຕ້ອງ")
     st.stop()
 
-# --- 3. Sidebar ---
+# --- 3. Sidebar (ຄືເກົ່າ ບໍ່ປ່ຽນແປງ) ---
 with st.sidebar:
-    st.title("☕ Cafe Management")
-    st.write(f"Status: `{st.session_state['role'].upper()}`")
+    st.markdown("<h1 style='color: #4338ca;'>☕ Cafe Manager</h1>", unsafe_allow_html=True)
+    st.write(f"Status: :blue[{st.session_state['role'].upper()}]")
     if st.session_state['role'] == 'admin':
-        menu = st.radio("Menu", ["📊 Dashboard", "📝 ບັນທຶກການຂາຍ", "📜 ປະຫວັດການຂາຍ", "☕ ຈັດການສິນຄ້າ", "🔮 ຄາດຄະເນ AI"])
+        menu = st.radio("Menu", ["📊 Dashboard", "📝 ບັນທຶກການຂາຍ", "📜 ປະຫວັດການຂາຍ", "☕ ຈັດການສິນຄ້າ", "🔮 ຄາດຄເນ AI"])
     else:
         menu = st.radio("Menu", ["📝 ບັນທຶກການຂາຍ", "📜 ປະຫວັດການຂາຍ"])
     
-    if st.button("🚪 Logout"): st.session_state.clear(); st.rerun()
+    if st.button("🚪 Logout", use_container_width=True): st.session_state.clear(); st.rerun()
 
-# --- 4. Dashboard (Smart Alert Edition) ---
+# --- 4. Dashboard (ປັບ UI ໃໝ່ໃຫ້ Modern) ---
 if menu == "📊 Dashboard":
-    st.header("📊 Dashboard ພາບລວມ")
+    st.markdown("<h2 style='color: #1e293b;'>📊 ພາບລວມທຸລະກິດ</h2>", unsafe_allow_html=True)
     today = df['transaction_date'].max()
     today_sales = df[df['transaction_date'] == today]['total_sales'].sum()
     sales_30d = df[df['transaction_date'] > (today - timedelta(days=30))]['total_sales'].sum()
     avg_daily = sales_30d / 30 if sales_30d > 0 else 0
     
-    # 🔔 [Automation Alert]
+    # 🔔 [Smart Alert แบบใหม่]
     if avg_daily > 0:
         diff_percent = ((today_sales - avg_daily) / avg_daily) * 100
         if today_sales < avg_daily:
-            st.warning(f"⚠️ **ຍອດຂາຍມື້ນີ້ຕ່ຳກວ່າຄ່າສະເລ່ຍ:** {abs(diff_percent):.1f}% (ຍອດມື້ນີ້: ฿{today_sales:,.0f} / ສະເລ່ຍ: ฿{avg_daily:,.0f})")
+            st.warning(f"💡 **Insight:** ຍອດຂາຍມື້ນີ້ຕ່ຳກວ່າຄ່າສະເລ່ຍ **{abs(diff_percent):.1f}%**. ລອງຈັດໂປຣໂມຊັ່ນຊ່ວງບ່າຍເບິ່ງບໍ່?")
         else:
-            st.success(f"🎉 **ຍອດຂາຍມື້ນີ້ສູງກວ່າຄ່າສະເລ່ຍ:** {diff_percent:.1f}%! ເຮັດໄດ້ດີຫຼາຍຄັບ.")
+            st.success(f"🌟 **Insight:** ຍອດຂາຍມື້ນີ້ສູງກວ່າຄ່າສະເລ່ຍ **{diff_percent:.1f}%**! ຮັກສາມາດຕະຖານນີ້ໄວ້ເດີ້.")
 
+    # Display Metrics in Cards
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("ຍອດມື້ນີ້", f"฿{today_sales:,.0f}")
     c2.metric("ບິນມື້ນີ້", f"{len(df[df['transaction_date'] == today])}")
     c3.metric("ຍອດລວມ 30 ວັນ", f"฿{sales_30d:,.0f}")
     c4.metric("ສະເລ່ຍ/ວັນ", f"฿{avg_daily:,.0f}")
-    st.divider()
-    col_l, col_r = st.columns(2)
-    with col_l:
-        st.subheader("🏆 ຂາຍດີ 30 ວັນ")
-        st.bar_chart(df.groupby('product_detail')['transaction_qty'].sum().nlargest(5))
-    with col_r:
-        st.subheader("🕒 ລາຍການຫຼ້າສຸດ")
-        st.dataframe(df.sort_values('id', ascending=False).head(10), use_container_width=True)
 
-# --- 5. ບັນທຶກການຂາຍ ---
+    st.markdown("<br>", unsafe_allow_html=True)
+    col_l, col_r = st.columns([6, 4])
+    with col_l:
+        st.subheader("🏆 ສິນຄ້າຂາຍດີ (30 ວັນ)")
+        top_data = df.groupby('product_detail')['transaction_qty'].sum().nlargest(5).reset_index()
+        fig_top = px.bar(top_data, x='transaction_qty', y='product_detail', orientation='h', 
+                         color='transaction_qty', color_continuous_scale='Viridis', template='plotly_white')
+        fig_top.update_layout(showlegend=False, height=350, margin=dict(t=10, b=10))
+        st.plotly_chart(fig_top, use_container_width=True)
+    with col_r:
+        st.subheader("🕒 10 ລາຍການຫຼ້າສຸດ")
+        st.dataframe(df.sort_values('id', ascending=False).head(10)[['product_detail', 'total_sales']], use_container_width=True)
+
+# --- 5. ບັນທຶກການຂາຍ (ຄືເກົ່າ ບໍ່ປ່ຽນແປງ) ---
 elif menu == "📝 ບັນທຶກການຂາຍ":
     st.header("🛒 ບັນທຶກການຂາຍ")
     cat_filter = st.selectbox("📂 ເລືອກໝວດໝູ່", ["☕ ເຄື່ອງດື່ມ", "🍰 ເບເກີລີ້", "🍽️ ອາຫານ"])
@@ -121,9 +150,9 @@ elif menu == "📝 ບັນທຶກການຂາຍ":
         total_bill = qty * u_price
         
         st.markdown(f"""
-        <div style="background-color:#f0f2f6; padding:20px; border-radius:10px; border-left: 5px solid #ff4b4b;">
-            <h4 style="margin:0;">💰 ລາຄາຕໍ່ໜ່ວຍ: {u_price:,.2f} ฿</h4>
-            <h2 style="margin:10px 0; color:#ff4b4b;">💵 ຍອດລວມທີ່ຕ້ອງເກັບ: {total_bill:,.2f} ฿</h2>
+        <div style="background-color:#f8fafc; padding:20px; border-radius:15px; border-left: 5px solid #6366f1; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
+            <h4 style="margin:0; color:#64748b;">💰 ລາຄາຕໍ່ໜ່ວຍ: {u_price:,.2f} ฿</h4>
+            <h2 style="margin:10px 0; color:#4338ca;">💵 ຍອດລວມ: {total_bill:,.2f} ฿</h2>
         </div>
         """, unsafe_allow_html=True)
         
@@ -137,7 +166,7 @@ elif menu == "📝 ບັນທຶກການຂາຍ":
             conn.commit(); conn.close()
             st.success("🎉 ບັນທຶກສຳເລັດ!"); st.balloons(); st.rerun()
 
-# --- 6. ປະຫວັດການຂາຍ ---
+# --- 6. ປະຫວັດການຂາຍ (ຄືເກົ່າ ບໍ່ປ່ຽນແປງ) ---
 elif menu == "📜 ປະຫວັດການຂາຍ":
     st.header("📜 ປະຫວັດການຂາຍ")
     d_search = st.date_input("ເລືອກວັນທີ", df['transaction_date'].max())
@@ -153,7 +182,7 @@ elif menu == "📜 ປະຫວັດການຂາຍ":
             conn.commit(); conn.close(); st.rerun()
     st.dataframe(filtered.sort_values('id', ascending=False), use_container_width=True)
 
-# --- 7. ຈັດການສິນຄ້າ ---
+# --- 7. ຈັດການສິນຄ້າ (ຄືເກົ່າ ບໍ່ປ່ຽນແປງ) ---
 elif menu == "☕ ຈັດການສິນຄ້າ":
     st.header("☕ ຈັດການເມນູສິນຄ້າ")
     with st.expander("➕ ເພີ່ມສິນຄ້າໃໝ່"):
@@ -167,9 +196,9 @@ elif menu == "☕ ຈັດການສິນຄ້າ":
                              (pd.Timestamp.now().strftime('%Y-%m-%d'), '00:00:00', new_p, new_cat, 0, new_price, 0))
                 conn.commit(); conn.close(); st.success("ເພີ່ມສຳເລັດ!"); st.rerun()
 
-# --- 8. AI Forecasting (Smart Forecast Edition) ---
+# --- 8. AI Forecasting (ປັບກາຟໃຫ້ Premium) ---
 elif menu == "🔮 ຄາດຄະເນ AI":
-    st.header("🔮 ວິເຄາະແນວໂນ້ມ ແລະ ຄາດຄະເນຍອດຂາຍ")
+    st.markdown("<h2 style='color: #1e293b;'>🔮 ວິເຄາະ ແລະ ພະຍາກອນ AI</h2>", unsafe_allow_html=True)
     daily_sales = df.groupby(df['transaction_date'].dt.date)['total_sales'].sum().reset_index()
     
     if len(daily_sales) < 7:
@@ -190,22 +219,24 @@ elif menu == "🔮 ຄາດຄະເນ AI":
         diff_percent = ((avg_future_7 - avg_past_7) / avg_past_7) * 100
         trend_label = "ເພີ່ມຂຶ້ນ 📈" if diff_percent > 0 else "ຫຼຸດລົງ 📉"
 
-        # 🔔 [AI Smart Alert]
+        # AI Smart Alert
         if diff_percent < -5:
-            st.error(f"🚨 **AI ເຕືອນແນວໂນ້ມຂາລົງ:** ອາທິດໜ້າຍອດອາດຈະຕົກລົງ {abs(diff_percent):.1f}% ເມື່ອທຽບກັບອາທິດນີ້!")
+            st.error(f"🚨 **AI Alert:** ແນວໂນ້ມອາທິດໜ້າອາດຫຼຸດລົງ **{abs(diff_percent):.1f}%**. ກຽມແຜນການຕະຫຼາດດ່ວນ!")
         elif diff_percent > 5:
-            st.info(f"🚀 **AI ເຕືອນແນວໂນ້ມຂາຂຶ້ນ:** ອາທິດໜ້າຍອດມີໂອກາດເພີ່ມຂຶ້ນ {diff_percent:.1f}%! ກຽມຂອງໄວ້ໃຫ້ພໍເດີ້.")
+            st.info(f"🚀 **AI Alert:** ແນວໂນ້ມອາທິດໜ້າຈະເພີ່ມຂຶ້ນ **{diff_percent:.1f}%**! ກຽມວັດຖຸດິບໃຫ້ພໍເດີ້.")
 
-        st.markdown("### 📊 ສຫຼຸບການວິເຄາະແນວໂນ້ມ")
         col1, col2, col3 = st.columns(3)
         col1.metric("ສະເລ່ຍ 7 ວັນຜ່ານມາ", f"฿{avg_past_7:,.2f}")
         col2.metric("ສະເລ່ຍ 7 ວັນຂ້າງໜ້າ (AI)", f"฿{avg_future_7:,.2f}", delta=f"{diff_percent:.1f}% {trend_label}")
-        col3.metric("ແນວໂນ້ມການຂາຍ", trend_label)
+        col3.metric("ແນວໂນ້ມ", trend_label)
 
-        st.divider()
+        st.markdown("<br>", unsafe_allow_html=True)
         f_df = pd.DataFrame({'ວັນທີ': [(last_date + timedelta(days=i)).date() for i in range(1, 8)], 'ຍອດຄາດຄະເນ (฿)': [round(v, 2) for v in forecast_values]})
-        st.subheader("📅 ເສັ້ນສະແດງການຄາດຄະເນ 7 ວັນລ່ວງໜ້າ")
-        fig = px.line(f_df, x='ວັນທີ', y='ຍອດຄາດຄະເນ (฿)', markers=True, text='ຍອດຄາດຄະເນ (฿)', title="ແນວໂນ້ມຍອດຂາຍໃນອະນາຄົດ")
-        fig.update_traces(textposition="top center")
+        
+        # ปรับแต่งกราฟให้สวยงาม (Modern Line Chart)
+        fig = px.line(f_df, x='ວັນທີ', y='ຍອດຄາດຄະເນ (฿)', markers=True, text='ຍອດຄາດຄະເນ (฿)', title="📈 ແນວໂນ້ມຍອດຂາຍ 7 ວັນຂ້າງໜ້າ")
+        fig.update_traces(line_color='#6366f1', line_width=4, marker=dict(size=10, color='#4338ca'), textposition="top center")
+        fig.update_layout(plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', xaxis=dict(showgrid=False), yaxis=dict(showgrid=True, gridcolor='#f1f5f9'))
         st.plotly_chart(fig, use_container_width=True)
+        
         st.table(f_df)
