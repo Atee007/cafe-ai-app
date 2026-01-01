@@ -142,7 +142,7 @@ if not st.session_state['logged_in']:
         """, unsafe_allow_html=True)
         u = st.text_input("Username", placeholder="ກະລຸນາໃສ່ຊື່ຂອງທ່ານ.")
         p = st.text_input("Password", type="password", placeholder="ໃສ່ລະຫັດຜ່ານ")
-        if st.button("เข้าสู่ระบบ"):
+        if st.button("ເຂົ້າສູ່ລະບົບ"):
             if (u == "mycafe" and p == "cafe999") or (u == "staff" and p == "1111"):
                 st.session_state['logged_in'], st.session_state['role'] = True, ('admin' if u == "mycafe" else 'staff')
                 st.rerun()
