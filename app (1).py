@@ -12,23 +12,27 @@ from oauth2client.service_account import ServiceAccountCredentials # เพิ�
 # --- [ส่วนที่เพิ่มใหม่: ฟังก์ชันเชื่อมต่อ Google Sheets] ---
 def save_to_google_sheets(row_data):
     try:
+        # 1. กำหนด Scope เหมือนเดิม
         scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
         
-        # ดึงข้อมูลจาก Streamlit Secrets ที่คุณเพิ่งตั้งค่าไป
-        # ต้องมั่นใจว่าในหน้า Secrets คุณพิมพ์หัวข้อว่า [gcp_service_account]
-        creds_info = st.secrets["gcp_service_account"]
-        
-        # ใช้ dict แทนการอ่านไฟล์ .json
-        creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_info, scope)
-        
+        # 2. ดึงค่าจาก Secrets ที่คุณวางไว้ในหน้า Streamlit Cloud
+        # มั่นใจว่าในหน้า Secrets คุณใช้หัวข้อ [gcp_service_account]
+        if "gcp_service_account" in st.secrets:
+            creds_info = st.secrets["gcp_service_account"]
+            # ใช้ฟังก์ชัน .from_json_keyfile_dict (ห้ามใช้ _name เพราะบน Cloud ไม่มีไฟล์)
+            creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_info, scope)
+        else:
+            # กันเหนียว: ถ้าหา Secrets ไม่เจอ ให้ลองหาไฟล์ในเครื่อง (สำหรับตอนรันในคอม)
+            creds = ServiceAccountCredentials.from_json_keyfile_name('key.json', scope)
+            
         client = gspread.authorize(creds)
-        # ตรวจสอบชื่อไฟล์ Google Sheets ต้องตรงกับ "Cafe_Sales_Data" เป๊ะๆ
+        # ชื่อไฟล์ต้องตรงกับในรูปที่ 5 คือ "Cafe_Sales_Data"
         sheet = client.open("Cafe_Sales_Data").sheet1
         sheet.append_row(row_data)
         return True
     except Exception as e:
-        # พิมพ์ Error ออกมาดูที่หน้าแอปเลยถ้าบันทึกไม่ได้
-        st.error(f"ระบบ Online ขัดข้อง: {e}")
+        # บรรทัดนี้จะช่วยบอกเราว่าทำไมยัง Online ไม่ได้
+        st.error(f"Error: {e}")
         return False
 
 # --- [ส่วนที่ 1: ความสวยงามเดิมของคุณ] ---
