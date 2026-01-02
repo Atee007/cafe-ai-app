@@ -12,16 +12,22 @@ from oauth2client.service_account import ServiceAccountCredentials # เพิ�
 # --- [ส่วนที่เพิ่มใหม่: ฟังก์ชันเชื่อมต่อ Google Sheets] ---
 def save_to_google_sheets(row_data):
     try:
-        # กำหนดขอบเขตการเข้าถึง
+        # 1. กำหนดขอบเขตการเข้าถึงเหมือนเดิม
         scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-        # ต้องมีไฟล์ key.json อยู่ในโฟลเดอร์เดียวกับโปรแกรม
-        creds = ServiceAccountCredentials.from_json_keyfile_name('key.json', scope)
+        
+        # 2. แก้จุดนี้: เปลี่ยนจากอ่านไฟล์ 'key.json' มาเป็นอ่านจาก st.secrets
+        # ชื่อใน [" "] ต้องตรงกับหัวข้อ [ ] ที่เราตั้งในหน้า Secrets
+        creds_info = st.secrets["gcp_service_account"]
+        creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_info, scope)
+        
+        # 3. เชื่อมต่อตามปกติ
         client = gspread.authorize(creds)
-        # เปิดไฟล์ Google Sheets ชื่อ Cafe_Sales_Data
         sheet = client.open("Cafe_Sales_Data").sheet1
         sheet.append_row(row_data)
         return True
-    except:
+    except Exception as e:
+        # พิมพ์ Error ออกมาดูในหน้าแอปเผื่อมีปัญหาเรื่องชื่อไฟล์ Sheets ไม่ตรง
+        st.error(f"Google Sheets Error: {e}")
         return False
 
 # --- [ส่วนที่ 1: ความสวยงามเดิมของคุณ] ---
