@@ -6,8 +6,25 @@ import numpy as np
 from datetime import timedelta
 import plotly.express as px
 import os
+import gspread  # เพิ่มสำหรับ Google Sheets
+from oauth2client.service_account import ServiceAccountCredentials # เพิ่มสำหรับ Google Sheets
 
-# --- [ส่วนที่ 1: เพิ่มความสวยงามโดยไม่ตัดของเดิม] ---
+# --- [ส่วนที่เพิ่มใหม่: ฟังก์ชันเชื่อมต่อ Google Sheets] ---
+def save_to_google_sheets(row_data):
+    try:
+        # กำหนดขอบเขตการเข้าถึง
+        scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+        # ต้องมีไฟล์ key.json อยู่ในโฟลเดอร์เดียวกับโปรแกรม
+        creds = ServiceAccountCredentials.from_json_keyfile_name('key.json', scope)
+        client = gspread.authorize(creds)
+        # เปิดไฟล์ Google Sheets ชื่อ Cafe_Sales_Data
+        sheet = client.open("Cafe_Sales_Data").sheet1
+        sheet.append_row(row_data)
+        return True
+    except:
+        return False
+
+# --- [ส่วนที่ 1: ความสวยงามเดิมของคุณ] ---
 st.set_page_config(page_title="Cafe AI Pro", layout="wide")
 
 st.markdown("""
@@ -49,7 +66,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 1. ການຕັ້ງຄ່າ ແລະ ໂຫຼດຂໍ້ມູນ ---
+# --- 1. การตั้งค่าและโหลดข้อมูลเดิม ---
 DB_NAME = 'cafe_database.db'
 
 def init_db():
@@ -79,7 +96,6 @@ def init_db():
 init_db()
 
 def get_data():
-    
     conn = sqlite3.connect(DB_NAME)
     df = pd.read_sql('SELECT * FROM sales', conn)
     df['transaction_date'] = pd.to_datetime(df['transaction_date'])
@@ -98,7 +114,7 @@ def load_ai():
 df = get_data()
 model, features_list = load_ai()
 
-# --- 2. ລະບົບ Login & Session ---
+# --- 2. ระบบ Login & Session เดิม ---
 if 'logged_in' not in st.session_state: st.session_state['logged_in'] = False
 if 'role' not in st.session_state: st.session_state['role'] = 'guest'
 if not st.session_state['logged_in']:
@@ -111,29 +127,26 @@ if not st.session_state['logged_in']:
         else: st.error("ລະຫັດບໍ່ຖືກຕ້ອງ")
     st.stop()
     
-# --- 3. Sidebar Menu ---
+# --- 3. Sidebar Menu เดิม ---
 with st.sidebar:
     st.title("☕ Cafe Management")
     st.write(f"ສະຖານະ: **{st.session_state['role'].upper()}**")
     if st.session_state['role'] == 'admin':
         menu = st.radio("ເມນູຫຼັກ", ["📊 Dashboard", "📝 ບັນທຶກການຂາຍ", "📜 ປະຫວັດການຂາຍ", "☕ ຈັດການສິນຄ້າ", "🔮 ຄາດຄະເນ AI"])
     else:
-        menu = st.radio("ເມນູຫຼັກ", ["📝 ບັນທຶກການຂາຍ", "📜 ປະຫວັດການຂາຍ"])
+        menu = st.radio("ເມນູຫຼັກ", ["📝 ບັນທຶກการขาย", "📜 ประวัติการขาย"])
         
     st.divider()
     if st.button("🚪 Logout"): 
         st.session_state.clear()
         st.rerun()
         
-# --- 4. Dashboard (แก้ไข Logic การหารเฉลี่ย) ---
+# --- 4. Dashboard เดิม ---
 if menu == "📊 Dashboard":
     st.header("📊 ພາບລວມທຸລະກິດ")
-    
     today = df['transaction_date'].max()
     today_sales = df[df['transaction_date'] == today]['total_sales'].sum()
     sales_30d = df[df['transaction_date'] > (today - timedelta(days=30))]['total_sales'].sum() 
-    
-    # แก้ไขจุดที่ 1: เปลี่ยนจากหาร 30 คงที่ เป็นหารด้วยจำนวนวันที่มีการขายจริง
     days_with_data = df[df['transaction_date'] > (today - timedelta(days=30))]['transaction_date'].dt.date.nunique()
     avg_daily = sales_30d / days_with_data if days_with_data > 0 else 0
     
@@ -142,7 +155,6 @@ if menu == "📊 Dashboard":
         if today_sales < avg_daily:
             st.warning(f"⚠️ **ແຈ້ງເຕືອນ:** ຍອດຂາຍມື້ນີ້ (฿{today_sales:,.0f}) **ຕ່ຳກວ່າ** ຄ່າສະເລ່ຍຢູ່ {abs(diff_percent):.1f}%")
         else:
-            # ถ้าเป็นวันแรก % จะเป็น 0 เพราะวันนี้ = ค่าเฉลี่ย
             st.success(f"🎉 **ຂ່າວດີ:** ຍອດຂາຍມື້ນີ້ (฿{today_sales:,.0f}) **ສູງກວ່າ** ຄ່າສະເລ່ຍເຖິງ {diff_percent:.1f}%!")
             
     c1, c2, c3, c4 = st.columns(4)
@@ -163,7 +175,7 @@ if menu == "📊 Dashboard":
         st.subheader("🕒 ລາຍການຂາຍຫຼ້າສຸດ")
         st.dataframe(df.sort_values('id', ascending=False).head(8), use_container_width=True)
         
-# --- 5. AI Forecasting (ปรับปรุงการแสดงผลตามตัวอย่างโดยรักษา Logic เดิม) ---
+# --- 5. AI Forecasting เดิม ---
 elif menu == "🔮 ຄາດຄະເນ AI":
     st.header("🔮 AI Business Intelligence")
     if model is None:
@@ -173,11 +185,10 @@ elif menu == "🔮 ຄາດຄະເນ AI":
         if len(daily_sales) < 7:
             st.warning("⚠️ ຕ້ອງການຂໍ້ມູນຢ່າງໜ້ອຍ 7 ວັນ")
         else:
-            # --- [คง Logic การคำนวณเดิมของคุณไว้ทั้งหมด] ---
             avg_past_7 = daily_sales['total_sales'].tail(7).mean()
             hist = list(daily_sales['total_sales'].tail(7))
             forecast_values = []
-            forecast_dates = [] # เพิ่มเพื่อเก็บวันที่สำหรับวาดกราฟ
+            forecast_dates = []
             last_date = pd.to_datetime(daily_sales['transaction_date'].max())
             
             for i in range(1, 8):
@@ -189,16 +200,14 @@ elif menu == "🔮 ຄາດຄະເນ AI":
                 }])
                 pred = model.predict(inp[features_list])[0]
                 forecast_values.append(pred)
-                forecast_dates.append(f_date.date()) # เก็บวันเดือนปีอนาคต
+                forecast_dates.append(f_date.date())
                 hist.append(pred)
                 hist.pop(0)
                 
             avg_future_7 = np.mean(forecast_values)
             diff_percent = ((avg_future_7 - avg_past_7) / avg_past_7) * 100
 
-            # --- [ส่วนการแสดงผลใหม่: Card สรุปยอด] ---
             m1, m2, m3 = st.columns(3)
-            # ใช้การจัดรูปแบบด้วย HTML เพื่อให้ Card ดูเหมือนรูปตัวอย่าง
             m1.markdown(f"""<div style="background:white; padding:20px; border-radius:15px; border:1px solid #F0F0F0; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
                 <small style="color:gray;">ສະເລ່ຍ 7 ວັນຜ່ານມາ</small><br>
                 <strong style="font-size:20px;">฿{avg_past_7:,.2f}</strong></div>""", unsafe_allow_html=True)
@@ -212,7 +221,6 @@ elif menu == "🔮 ຄາດຄະເນ AI":
                 <small style="color:gray;">ແນວໂນ້ມຕະຫຼາດ</small><br>
                 <strong style="font-size:20px; color:{trend_color};">{diff_percent:+.1f}%</strong></div>""", unsafe_allow_html=True)
 
-            # --- [ส่วน Strategic Advice เดิมของคุณ] ---
             st.write("") 
             st.markdown("### 💡 AI Strategic Advice")
             if diff_percent > 5:
@@ -222,35 +230,15 @@ elif menu == "🔮 ຄາດຄະເນ AI":
             else:
                 st.success("⚖️ **ສະຖານະຄົງທີ່:** ຍອດຂາຍມີແນວໂນ້ມຊົງຕົວ.")
 
-            # --- [ส่วนกราฟใหม่: เส้นทึบต่อด้วยเส้นประ] ---
             import plotly.graph_objects as go
-            
-            # ข้อมูลจริง 7 วันล่าสุด
             actual_df = daily_sales.tail(7)
-            
             fig = go.Figure()
-            # เส้นทึบ: ข้อมูลจริง
-            fig.add_trace(go.Scatter(
-                x=actual_df['transaction_date'], y=actual_df['total_sales'],
-                mode='lines+markers', name='ຍອດຂາຍຈິງ',
-                line=dict(color='#8B5A2B', width=4)
-            ))
-            # เส้นประ: ข้อมูลพยากรณ์
-            fig.add_trace(go.Scatter(
-                x=forecast_dates, y=forecast_values,
-                mode='lines+markers', name='ຄາດຄະເນ',
-                line=dict(color='#8B5A2B', width=4, dash='dash') # กำหนดเส้นประที่นี่
-            ))
-
-            fig.update_layout(
-                title="ການວິເຄາະແນວໂນ້ມຍອດຂາຍ",
-                xaxis_title="ວັນທີ", yaxis_title="ຍອດຂาย (฿)",
-                hovermode="x unified",
-                plot_bgcolor='white'
-            )
+            fig.add_trace(go.Scatter(x=actual_df['transaction_date'], y=actual_df['total_sales'], mode='lines+markers', name='ຍອດຂາຍຈິງ', line=dict(color='#8B5A2B', width=4)))
+            fig.add_trace(go.Scatter(x=forecast_dates, y=forecast_values, mode='lines+markers', name='ຄາດຄະເນ', line=dict(color='#8B5A2B', width=4, dash='dash')))
+            fig.update_layout(title="ການວິເຄາະແນວໂນ້ມຍອດຂາຍ", xaxis_title="ວັນທີ", yaxis_title="ຍອດຂาย (฿)", hovermode="x unified", plot_bgcolor='white')
             st.plotly_chart(fig, use_container_width=True)
             
-# --- 6. ບັນທຶກການຂາຍ (แก้ไขเรื่องเวลาประเทศลาว) ---
+# --- 6. บันทึกการขาย (จุดที่มีการรวม Google Sheets เข้าไป) ---
 elif menu == "📝 ບັນທຶກການຂາຍ":
     st.header("🛒 ບັນທຶກການຂາຍໃໝ່")
     cat_filter = st.selectbox("📂 ເລືອກໝວດໝູ່", ["☕ ເຄື່ອງດື່ມ", "🍰 ເບເກີລີ້", "🍽️ ອາຫານ"])
@@ -258,7 +246,7 @@ elif menu == "📝 ບັນທຶກການຂາຍ":
     filtered_prods = all_prods[all_prods['product_category'] == cat_filter]
     
     if filtered_prods.empty:
-        st.warning(f"⚠️ ຍັງບໍ່ມີຂໍ້ມູນສິນຄ້າໃນໝວດ {cat_filter}")
+        st.warning(f"⚠️ ຍັງບໍ່ມີຂໍ້ມູນສินค้าในหมวด {cat_filter}")
     else:
         p_name = st.selectbox("🛍️ ເລືອກສິນຄ້າ", filtered_prods['product_detail'])
         u_price = float(filtered_prods[filtered_prods['product_detail'] == p_name]['unit_price'].values[0])
@@ -266,35 +254,46 @@ elif menu == "📝 ບັນທຶກການຂາຍ":
         total = qty * u_price
         
         st.info(f"💰 ລາຄາຕໍ່ໜ່ວຍ: {u_price:,.2f} ฿ | **ยอดรวม: {total:,.2f} ฿**")
+        
+        # --- [ปรับปรุงปุ่มยืนยันเพื่อให้ส่งข้อมูลไป 2 ที่] ---
         if st.button("✅ ຢືນຢັນການຂາຍ", type="primary"):
-            # แก้ไขจุดที่ 2: ตั้งค่าเวลาเป็นประเทศลาว (UTC+7)
             lao_time = pd.Timestamp.now() + timedelta(hours=7)
             current_date = lao_time.strftime('%Y-%m-%d')
             current_time = lao_time.strftime('%H:%M:%S')
             
+            # 1. บันทึกลงเครื่อง (SQLite - โค้ดเดิม)
             conn = sqlite3.connect(DB_NAME)
             conn.execute("INSERT INTO sales (transaction_date, transaction_time, product_detail, product_category, transaction_qty, unit_price, total_sales) VALUES (?,?,?,?,?,?,?)",
                          (current_date, current_time, p_name, cat_filter, qty, u_price, total))
             conn.commit(); conn.close()
-            st.success(f"ບັນທຶກສຳເລັດ! (ເວລາ: {current_time})"); st.balloons(); st.rerun()
             
-# --- 7. ປະຫວັດການຂາຍ ---
-elif menu == "📜 ປະຫວັດການຂາຍ":
+            # 2. บันทึกลง Google Sheets (โค้ดใหม่ที่รวมเข้าไป)
+            new_record = [current_date, current_time, p_name, cat_filter, int(qty), float(u_price), float(total)]
+            gs_success = save_to_google_sheets(new_record)
+            
+            if gs_success:
+                st.success(f"ບັນທຶກສຳເລັດທັງໃນເຄື່ອງ ແລະ Online! (ເວລາ: {current_time})")
+            else:
+                st.warning(f"ບັນທຶກในเครื่องสำเเร็จ แต่ Online ผิดพลาด (ตรวจสอบอินเทอร์เน็ต)")
+                
+            st.balloons(); st.rerun()
+            
+# --- 7. ประวัติการขาย เดิม ---
+elif menu == "📜 ປະຫວັດການຂาย":
     st.header("📜 ປະຫວັດການຂາຍ")
     d_search = st.date_input("ຄົ້ນຫາວັນທີ", df['transaction_date'].max())
     filtered = df[df['transaction_date'].dt.date == d_search]
     st.metric("ຍອດລວມວັນນີ້", f"฿{filtered['total_sales'].sum():,.0f}")
     st.dataframe(filtered.sort_values('id', ascending=False), use_container_width=True)
     
-# --- 8. ຈັດການສິນຄ້າ (แก้ไขเรื่องเวลาในกรณีเพิ่มสินค้าใหม่) ---
+# --- 8. จัดการสินค้า เดิม ---
 elif menu == "☕ ຈັດການສິນຄ້າ":
     st.header("☕ ຈັດการเมนูสินค้า")
     with st.expander("➕ ເພີ່ມສິນຄ້າໃໝ່"):
-        n_cat = st.selectbox("ໝວດໝູ່", ["☕ ເຄື່ອງດື່ມ", "🍰 ເບເກີລີ້", "🍽️ อาหาร"])
+        n_cat = st.selectbox("ໝວດໝູ່", ["☕ ເຄື່ອງດື່ມ", "🍰 ເเบເກີລີ້", "🍽️ อาหาร"])
         n_p = st.text_input("ຊື່ສินค้า")
         n_pr = st.number_input("ราคา", min_value=0.0)
         if st.button("💾 Save Product"):
-            # ตั้งค่าเวลาเป็นประเทศลาว
             lao_time = pd.Timestamp.now() + timedelta(hours=7)
             conn = sqlite3.connect(DB_NAME)
             conn.execute("INSERT INTO sales (transaction_date, transaction_time, product_detail, product_category, transaction_qty, unit_price, total_sales) VALUES (?,?,?,?,?,?,?)",
