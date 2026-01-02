@@ -5,3 +5,5 @@ openpyxl
 scikit-learn
 plotly
 requests
+gspread
+oauth2client
