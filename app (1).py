@@ -204,7 +204,7 @@ elif menu == "🔮 ຄາດຄະເນ AI":
             m2.metric("ຄາດຄະເນ 7 ວັນຂ້າງໜ້າ", f"฿{avg_future_7:,.0f}", delta=f"{diff_percent:.1f}%")
             m3.metric("ສະຖານະຕະຫຼາດ", "📈 ກໍາລັງເຕີບໂຕ" if diff_percent > 0 else "📉 ຊະລໍຕົວ")
             
-            f_df = pd.DataFrame({'ວັນທີ': [(last_date + timedelta(days=i)).date() for i in range(1, 8)], 'ຍອດພະຍາກອນ': forecast_values})
+            f_df = pd.DataFrame({'ວัນທີ': [(last_date + timedelta(days=i)).date() for i in range(1, 8)], 'ຍອດພະຍາກອນ': forecast_values})
             st.plotly_chart(px.line(f_df, x='ວัນທີ', y='ຍອດພະຍາກອນ', markers=True), use_container_width=True)
             
 # --- 6. ບັນທຶກການຂາຍ (แก้ไขเรื่องเวลาประเทศลาว) ---
