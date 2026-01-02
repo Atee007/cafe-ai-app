@@ -134,7 +134,14 @@ if menu == "📊 Dashboard":
     today = df['transaction_date'].max()
     today_sales = df[df['transaction_date'] == today]['total_sales'].sum()
     sales_30d = df[df['transaction_date'] > (today - timedelta(days=30))]['total_sales'].sum()
-    avg_daily = sales_30d / 30 if sales_30d > 0 else 0
+   # นับจำนวนวันที่มีการขายจริง (นับแบบไม่ซ้ำวัน) ในรอบ 30 วันที่ผ่านมา
+days_with_data = df[df['transaction_date'] > (today - timedelta(days=30))]['transaction_date'].dt.date.nunique()
+
+# ถ้าเพิ่งขายวันแรก ให้ตัวหารเป็น 1 (ไม่ใช่ 30) เพื่อให้ค่าเฉลี่ยสมเหตุสมผล
+if days_with_data > 0:
+    avg_daily = sales_30d / days_with_data
+else:
+    avg_daily = 0
     
     if avg_daily > 0:
         diff_percent = ((today_sales - avg_daily) / avg_daily) * 100
