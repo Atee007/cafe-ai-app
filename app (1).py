@@ -163,7 +163,7 @@ if menu == "📊 Dashboard":
         st.subheader("🕒 ລາຍການຂາຍຫຼ້າສຸດ")
         st.dataframe(df.sort_values('id', ascending=False).head(8), use_container_width=True)
         
-# --- 5. AI Forecasting ---
+# --- 5. AI Forecasting (ปรับปรุงการแสดงผลตามตัวอย่างโดยรักษา Logic เดิม) ---
 elif menu == "🔮 ຄາດຄະເນ AI":
     st.header("🔮 AI Business Intelligence")
     if model is None:
@@ -173,9 +173,11 @@ elif menu == "🔮 ຄາດຄະເນ AI":
         if len(daily_sales) < 7:
             st.warning("⚠️ ຕ້ອງການຂໍ້ມູນຢ່າງໜ້ອຍ 7 ວັນ")
         else:
+            # --- [คง Logic การคำนวณเดิมของคุณไว้ทั้งหมด] ---
             avg_past_7 = daily_sales['total_sales'].tail(7).mean()
             hist = list(daily_sales['total_sales'].tail(7))
             forecast_values = []
+            forecast_dates = [] # เพิ่มเพื่อเก็บวันที่สำหรับวาดกราฟ
             last_date = pd.to_datetime(daily_sales['transaction_date'].max())
             
             for i in range(1, 8):
@@ -186,26 +188,67 @@ elif menu == "🔮 ຄາດຄະເນ AI":
                     'sales_lag1': hist[-1], 'sales_lag7': hist[0], 'rolling_mean_7': np.mean(hist)
                 }])
                 pred = model.predict(inp[features_list])[0]
-                forecast_values.append(pred); hist.append(pred); hist.pop(0)
+                forecast_values.append(pred)
+                forecast_dates.append(f_date.date()) # เก็บวันเดือนปีอนาคต
+                hist.append(pred)
+                hist.pop(0)
                 
             avg_future_7 = np.mean(forecast_values)
             diff_percent = ((avg_future_7 - avg_past_7) / avg_past_7) * 100
-            st.markdown("### 💡 AI Strategic Advice")
-            advice_col, trend_col = st.columns([2, 1])
-            with advice_col:
-                if diff_percent > 5:
-                    st.info(f"📈 **ແນວໂນ້ມຂາຂຶ້ນ:** ຄາດວ່າອາທິດໜ້າຍອດຂາຍຈະເພີ່ມຂຶ້ນ {diff_percent:.1f}%.")
-                elif diff_percent < -5:
-                    st.error(f"📉 **ແນວໂນ້ມຂາລົງ:** ຍອດຂາຍອາດຫຼຸດລົງ {abs(diff_percent):.1f}%.")
-                else:
-                    st.success("⚖️ **ສະຖານະຄົງທີ່:** ຍອດຂາຍມີແນວໂນ້ມຊົງຕົວ.")
+
+            # --- [ส่วนการแสดงผลใหม่: Card สรุปยอด] ---
             m1, m2, m3 = st.columns(3)
-            m1.metric("ສະເລ່ຍ 7 ວັນຜ່ານມາ", f"฿{avg_past_7:,.0f}")
-            m2.metric("ຄາດຄະເນ 7 ວັນຂ້າງໜ້າ", f"฿{avg_future_7:,.0f}", delta=f"{diff_percent:.1f}%")
-            m3.metric("ສະຖານະຕະຫຼາດ", "📈 ກໍາລັງເຕີບໂຕ" if diff_percent > 0 else "📉 ຊະລໍຕົວ")
+            # ใช้การจัดรูปแบบด้วย HTML เพื่อให้ Card ดูเหมือนรูปตัวอย่าง
+            m1.markdown(f"""<div style="background:white; padding:20px; border-radius:15px; border:1px solid #F0F0F0; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
+                <small style="color:gray;">ສະເລ່ຍ 7 ວັນຜ່ານມາ</small><br>
+                <strong style="font-size:20px;">฿{avg_past_7:,.2f}</strong></div>""", unsafe_allow_html=True)
             
-            f_df = pd.DataFrame({'ວัນທີ': [(last_date + timedelta(days=i)).date() for i in range(1, 8)], 'ຍອດພະຍາກອນ': forecast_values})
-            st.plotly_chart(px.line(f_df, x='ວัນທີ', y='ຍອດພະຍາກອນ', markers=True), use_container_width=True)
+            m2.markdown(f"""<div style="background:white; padding:20px; border-radius:15px; border:1px solid #F0F0F0; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
+                <small style="color:gray;">ຄາດຄະເນ 7 ວັນຂ້າງໜ້າ</small><br>
+                <strong style="font-size:20px; color:#8B5A2B;">฿{avg_future_7:,.2f}</strong></div>""", unsafe_allow_html=True)
+            
+            trend_color = "#22c55e" if diff_percent > 0 else "#ef4444"
+            m3.markdown(f"""<div style="background:white; padding:20px; border-radius:15px; border:1px solid #F0F0F0; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
+                <small style="color:gray;">ແນວໂນ້ມຕະຫຼາດ</small><br>
+                <strong style="font-size:20px; color:{trend_color};">{diff_percent:+.1f}%</strong></div>""", unsafe_allow_html=True)
+
+            # --- [ส่วน Strategic Advice เดิมของคุณ] ---
+            st.write("") 
+            st.markdown("### 💡 AI Strategic Advice")
+            if diff_percent > 5:
+                st.info(f"📈 **ແນວໂນ້ມຂາຂຶ້ນ:** ຄາດວ່າອາທິດໜ້າຍອດຂາຍຈະເພີ່ມຂຶ້ນ {diff_percent:.1f}%.")
+            elif diff_percent < -5:
+                st.error(f"📉 **ແນວໂນ້ມຂາລົງ:** ຍອດຂາຍອາດຫຼຸດລົງ {abs(diff_percent):.1f}%.")
+            else:
+                st.success("⚖️ **ສະຖານະຄົງທີ່:** ຍອດຂາຍມີແນວໂນ້ມຊົງຕົວ.")
+
+            # --- [ส่วนกราฟใหม่: เส้นทึบต่อด้วยเส้นประ] ---
+            import plotly.graph_objects as go
+            
+            # ข้อมูลจริง 7 วันล่าสุด
+            actual_df = daily_sales.tail(7)
+            
+            fig = go.Figure()
+            # เส้นทึบ: ข้อมูลจริง
+            fig.add_trace(go.Scatter(
+                x=actual_df['transaction_date'], y=actual_df['total_sales'],
+                mode='lines+markers', name='ຍອດຂາຍຈິງ',
+                line=dict(color='#8B5A2B', width=4)
+            ))
+            # เส้นประ: ข้อมูลพยากรณ์
+            fig.add_trace(go.Scatter(
+                x=forecast_dates, y=forecast_values,
+                mode='lines+markers', name='ຄາດຄະເນ',
+                line=dict(color='#8B5A2B', width=4, dash='dash') # กำหนดเส้นประที่นี่
+            ))
+
+            fig.update_layout(
+                title="ການວິເຄາະແນວໂນ້ມຍອດຂາຍ",
+                xaxis_title="ວັນທີ", yaxis_title="ຍອດຂาย (฿)",
+                hovermode="x unified",
+                plot_bgcolor='white'
+            )
+            st.plotly_chart(fig, use_container_width=True)
             
 # --- 6. ບັນທຶກການຂາຍ (แก้ไขเรื่องเวลาประเทศลาว) ---
 elif menu == "📝 ບັນທຶກການຂາຍ":
