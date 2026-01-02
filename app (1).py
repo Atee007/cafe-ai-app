@@ -134,14 +134,7 @@ if menu == "📊 Dashboard":
     today = df['transaction_date'].max()
     today_sales = df[df['transaction_date'] == today]['total_sales'].sum()
     sales_30d = df[df['transaction_date'] > (today - timedelta(days=30))]['total_sales'].sum()
-   # นับจำนวนวันที่มีการขายจริง (นับแบบไม่ซ้ำวัน) ในรอบ 30 วันที่ผ่านมา
-days_with_data = df[df['transaction_date'] > (today - timedelta(days=30))]['transaction_date'].dt.date.nunique()
-
-# ถ้าเพิ่งขายวันแรก ให้ตัวหารเป็น 1 (ไม่ใช่ 30) เพื่อให้ค่าเฉลี่ยสมเหตุสมผล
-if days_with_data > 0:
-    avg_daily = sales_30d / days_with_data
-else:
-    avg_daily = 0
+    avg_daily = sales_30d / 30 if sales_30d > 0 else 0
     
     if avg_daily > 0:
         diff_percent = ((today_sales - avg_daily) / avg_daily) * 100
@@ -239,8 +232,8 @@ elif menu == "🔮 ຄາດຄະເນ AI":
                                title="7-Day Sales Forecast Trend", color_discrete_sequence=['#FF4B4B'])
             st.plotly_chart(fig_line, use_container_width=True)
 
-# --- 6. ບັນທຶກການຂາຍ (ฉบับแก้ไขเวลาประเทศลาว) ---
-elif menu == "📝 ບັນທຶກการขาย":
+# --- 6. ບັນທຶກການຂາຍ (ຄົງໄວ້ 100%) ---
+elif menu == "📝 ບັນທຶກການຂາຍ":
     st.header("🛒 ບັນທຶກການຂາຍໃໝ່")
     cat_filter = st.selectbox("📂 ເລືອກໝວດໝູ່", ["☕ ເຄື່ອງດື່ມ", "🍰 ເບເກີລີ້", "🍽️ ອາຫານ"])
     all_prods = df[['product_detail', 'product_category', 'unit_price']].drop_duplicates('product_detail')
@@ -254,34 +247,13 @@ elif menu == "📝 ບັນທຶກการขาย":
         qty = st.number_input("ຈຳນວນ", min_value=1, value=1)
         total = qty * u_price
         
-        st.info(f"💰 ລາຄາຕໍ່ໜ່ວຍ: {u_price:,.2f} ฿ | **ຍອດລວມ: {total:,.2f} ฿**")
-        
+        st.info(f"💰 ລาคาต่อหน่วย: {u_price:,.2f} ฿ | **ยอดรวม: {total:,.2f} ฿**")
         if st.button("✅ ຢືນຢັນການຂາຍ", type="primary"):
-            # --- [จุดที่แก้ไข: ตั้งค่าเวลาลาว UTC+7] ---
-            # pd.Timestamp.utcnow() จะได้เวลาสากล แล้วบวกเพิ่ม 7 ชั่วโมงเป็นเวลาลาว
-            lao_now = pd.Timestamp.utcnow() + pd.Timedelta(hours=7)
-            current_date = lao_now.strftime('%Y-%m-%d')
-            current_time = lao_now.strftime('%H:%M:%S')
-            
             conn = sqlite3.connect(DB_NAME)
-            conn.execute("""
-                INSERT INTO sales (
-                    transaction_date, 
-                    transaction_time, 
-                    product_detail, 
-                    product_category, 
-                    transaction_qty, 
-                    unit_price, 
-                    total_sales
-                ) VALUES (?,?,?,?,?,?,?)""",
-                (current_date, current_time, p_name, cat_filter, qty, u_price, total)
-            )
-            conn.commit()
-            conn.close()
-            
-            st.success(f"ບັນທຶກສຳເລັດ! (ວັນທີ: {current_date} ເວລາ: {current_time})")
-            st.balloons()
-            st.rerun()
+            conn.execute("INSERT INTO sales (transaction_date, transaction_time, product_detail, product_category, transaction_qty, unit_price, total_sales) VALUES (?,?,?,?,?,?,?)",
+                         (pd.Timestamp.now().strftime('%Y-%m-%d'), pd.Timestamp.now().strftime('%H:%M:%S'), p_name, cat_filter, qty, u_price, total))
+            conn.commit(); conn.close()
+            st.success("ບັນທຶກສຳເລັດ!"); st.balloons(); st.rerun()
 
 # --- 7. ປະຫວັດການຂາຍ (ຄົງໄວ້ 100%) ---
 elif menu == "📜 ປະຫວັດການຂາຍ":
