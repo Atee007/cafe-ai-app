@@ -49,7 +49,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 1. ການຕັ້ງຄ່າ ແລະ ໂຫຼດຂໍ້ມູນ (ຄົງໄວ້ 100%) ---
+# --- 1. ການຕັ້ງຄ່າ ແລະ ໂຫຼດຂໍ້ມູນ ---
 DB_NAME = 'cafe_database.db'
 
 def init_db():
@@ -98,7 +98,7 @@ def load_ai():
 df = get_data()
 model, features_list = load_ai()
 
-# --- 2. ລະບົບ Login & Session (ຄົງໄວ້ 100%) ---
+# --- 2. ລະບົບ Login & Session ---
 if 'logged_in' not in st.session_state: st.session_state['logged_in'] = False
 if 'role' not in st.session_state: st.session_state['role'] = 'guest'
 
@@ -112,7 +112,7 @@ if not st.session_state['logged_in']:
         else: st.error("ລະຫັດບໍ່ຖືກຕ້ອງ")
     st.stop()
 
-# --- 3. Sidebar Menu (ຄົງໄວ້ 100% - ແກ້ໄຂແຕ່ຊື່ໃຫ້ກົງກັນ) ---
+# --- 3. Sidebar Menu ---
 with st.sidebar:
     st.title("☕ Cafe Management")
     st.write(f"ສະຖານະ: **{st.session_state['role'].upper()}**")
@@ -127,20 +127,24 @@ with st.sidebar:
         st.session_state.clear()
         st.rerun()
 
-# --- 4. Dashboard (ຄົງໄວ້ 100% ບໍ່ມີການຕັດ) ---
+# --- 4. Dashboard (แก้ไข Logic การหารเฉลี่ย) ---
 if menu == "📊 Dashboard":
     st.header("📊 ພາບລວມທຸລະກິດ")
     
     today = df['transaction_date'].max()
     today_sales = df[df['transaction_date'] == today]['total_sales'].sum()
     sales_30d = df[df['transaction_date'] > (today - timedelta(days=30))]['total_sales'].sum()
-    avg_daily = sales_30d / 30 if sales_30d > 0 else 0
+    
+    # แก้ไขจุดที่ 1: เปลี่ยนจากหาร 30 คงที่ เป็นหารด้วยจำนวนวันที่มีการขายจริง
+    days_with_data = df[df['transaction_date'] > (today - timedelta(days=30))]['transaction_date'].dt.date.nunique()
+    avg_daily = sales_30d / days_with_data if days_with_data > 0 else 0
     
     if avg_daily > 0:
         diff_percent = ((today_sales - avg_daily) / avg_daily) * 100
         if today_sales < avg_daily:
             st.warning(f"⚠️ **ແຈ້ງເຕືອນ:** ຍອດຂາຍມື້ນີ້ (฿{today_sales:,.0f}) **ຕ່ຳກວ່າ** ຄ່າສະເລ່ຍຢູ່ {abs(diff_percent):.1f}%")
         else:
+            # ถ้าเป็นวันแรก % จะเป็น 0 เพราะวันนี้ = ค่าเฉลี่ย
             st.success(f"🎉 **ຂ່າວດີ:** ຍອດຂາຍມື້ນີ້ (฿{today_sales:,.0f}) **ສູງກວ່າ** ຄ່າສະເລ່ຍເຖິງ {diff_percent:.1f}%!")
 
     c1, c2, c3, c4 = st.columns(4)
@@ -161,24 +165,15 @@ if menu == "📊 Dashboard":
         st.subheader("🕒 ລາຍການຂາຍຫຼ້າສຸດ")
         st.dataframe(df.sort_values('id', ascending=False).head(8), use_container_width=True)
 
-    st.divider()
-    if avg_daily > 0:
-        if today_sales > avg_daily:
-            st.success(f"💡 **AI Analysis:** ยอดขายวันนี้สูงกว่าค่าเฉลี่ย {((today_sales-avg_daily)/avg_daily)*100:.1f}% เป็นสัญญาณที่ดีมากครับ!")
-        else:
-            st.warning(f"💡 **AI Analysis:** ยอดขายวันนี้ต่ำกว่าค่าเฉลี่ยเล็กน้อย ลองพิจารณาจัดโปรโมชั่นช่วงเย็นดูนะครับ")
-
-# --- 5. AI Forecasting (ຄົງໄວ້ 100% ທຸກການຄຳນວນ) ---
+# --- 5. AI Forecasting ---
 elif menu == "🔮 ຄາດຄະເນ AI":
     st.header("🔮 AI Business Intelligence")
-    
     if model is None:
-        st.error("❌ ບໍ່ພົບໄຟລ໌ Model AI (coffee_model.pkl), ກະລຸນາກວດສອບການ Train Model ກ່ອນ")
+        st.error("❌ ບໍ່ພົບໄຟລ໌ Model AI")
     else:
         daily_sales = df.groupby(df['transaction_date'].dt.date)['total_sales'].sum().reset_index()
-        
         if len(daily_sales) < 7:
-            st.warning("⚠️ ຕ້ອງການຂໍ້ມູນຢ່າງໜ້ອຍ 7 ວັນເພື່ອໃຫ້ AI ວິເຄາະໄດ້ແມ້ນຢຳ")
+            st.warning("⚠️ ຕ້ອງການຂໍ້ມູນຢ່າງໜ້ອຍ 7 ວັນ")
         else:
             avg_past_7 = daily_sales['total_sales'].tail(7).mean()
             hist = list(daily_sales['total_sales'].tail(7))
@@ -197,42 +192,25 @@ elif menu == "🔮 ຄາດຄະເນ AI":
                 
             avg_future_7 = np.mean(forecast_values)
             diff_percent = ((avg_future_7 - avg_past_7) / avg_past_7) * 100
-
             st.markdown("### 💡 AI Strategic Advice")
             advice_col, trend_col = st.columns([2, 1])
             with advice_col:
                 if diff_percent > 5:
-                    st.info(f"📈 **ແນວໂນ້ມຂາຂຶ້ນ:** ຄາດວ່າອາທິດໜ້າຍອດຂາຍຈະເພີ່ມຂຶ້ນ {diff_percent:.1f}%. ແນະນຳໃຫ້ກຽມວັດຖຸດິບເພີ່ມ ແລະ ເພີ່ມພະນັກງານໃນຊ່ວງພີກ.")
+                    st.info(f"📈 **ແນວໂນ້ມຂາຂຶ້ນ:** ຄາດວ່າອາທິດໜ້າຍອດຂາຍຈະເພີ່ມຂຶ້ນ {diff_percent:.1f}%.")
                 elif diff_percent < -5:
-                    st.error(f"📉 **ແນວໂນ້ມຂາລົງ:** ຍອດຂາຍອາດຫຼຸດລົງ {abs(diff_percent):.1f}%. ແນະນຳໃຫ້ຈັດໂປຣໂມຊັ່ນ 'Happy Hour' ເພື່ອດຶງດູດລູກຄ້າ.")
+                    st.error(f"📉 **ແນວໂນ້ມຂາລົງ:** ຍອດຂາຍອາດຫຼຸດລົງ {abs(diff_percent):.1f}%.")
                 else:
-                    st.success("⚖️ **ສະຖານະຄົງທີ່:** ຍອດຂາຍມີແນວໂນ້ມຊົງຕົວ. ເນັ້ນການຮັກສາມາດຕະຖານການບໍລິການ.")
+                    st.success("⚖️ **ສະຖານະຄົງທີ່:** ຍອດຂາຍມີແນວໂນ້ມຊົງຕົວ.")
 
-            st.divider()
             m1, m2, m3 = st.columns(3)
             m1.metric("ສະເລ່ຍ 7 ວັນຜ່ານມາ", f"฿{avg_past_7:,.0f}")
             m2.metric("ຄາດຄະເນ 7 ວັນຂ້າງໜ້າ", f"฿{avg_future_7:,.0f}", delta=f"{diff_percent:.1f}%")
             m3.metric("ສະຖານະຕະຫຼາດ", "📈 ກໍາລັງເຕີບໂຕ" if diff_percent > 0 else "📉 ຊະລໍຕົວ")
 
-            st.subheader("📦 AI Stock Optimization (ແນະນຳການສະຕັອກສິນຄ້າ)")
-            next_day_name = (last_date + timedelta(days=1)).day_name()
-            df['day_name'] = df['transaction_date'].dt.day_name()
-            rec_items = df[df['day_name'] == next_day_name].groupby('product_detail')['transaction_qty'].sum().nlargest(3)
-            
-            s1, s2, s3 = st.columns(3)
-            cols = [s1, s2, s3]
-            for i, (item, val) in enumerate(rec_items.items()):
-                cols[i].success(f"**{item}**\n\nກຽມສະຕັອກ: +{int(val*1.2)} ຊິ້ນ")
+            f_df = pd.DataFrame({'ວັນທີ': [(last_date + timedelta(days=i)).date() for i in range(1, 8)], 'ຍອດພະຍາກອນ': forecast_values})
+            st.plotly_chart(px.line(f_df, x='ວันທີ', y='ຍອດພະຍາກອນ', markers=True), use_container_width=True)
 
-            f_df = pd.DataFrame({
-                'ວັນທີ': [(last_date + timedelta(days=i)).date() for i in range(1, 8)], 
-                'ຍອດພະຍາກອນ': forecast_values
-            })
-            fig_line = px.line(f_df, x='ວັນທີ', y='ຍອດພະຍາກອນ', markers=True, text=[f"{v:,.0f}" for v in forecast_values],
-                               title="7-Day Sales Forecast Trend", color_discrete_sequence=['#FF4B4B'])
-            st.plotly_chart(fig_line, use_container_width=True)
-
-# --- 6. ບັນທຶກການຂາຍ (ຄົງໄວ້ 100%) ---
+# --- 6. ບັນທຶກການຂາຍ (แก้ไขเรื่องเวลาประเทศลาว) ---
 elif menu == "📝 ບັນທຶກການຂາຍ":
     st.header("🛒 ບັນທຶກການຂາຍໃໝ່")
     cat_filter = st.selectbox("📂 ເລືອກໝວດໝູ່", ["☕ ເຄື່ອງດື່ມ", "🍰 ເບເກີລີ້", "🍽️ ອາຫານ"])
@@ -247,15 +225,20 @@ elif menu == "📝 ບັນທຶກການຂາຍ":
         qty = st.number_input("ຈຳນວນ", min_value=1, value=1)
         total = qty * u_price
         
-        st.info(f"💰 ລาคาต่อหน่วย: {u_price:,.2f} ฿ | **ยอดรวม: {total:,.2f} ฿**")
+        st.info(f"💰 ລາຄາຕໍ່ໜ່ວຍ: {u_price:,.2f} ฿ | **ยอดรวม: {total:,.2f} ฿**")
         if st.button("✅ ຢືນຢັນການຂາຍ", type="primary"):
+            # แก้ไขจุดที่ 2: ตั้งค่าเวลาเป็นประเทศลาว (UTC+7)
+            lao_time = pd.Timestamp.now() + timedelta(hours=7)
+            current_date = lao_time.strftime('%Y-%m-%d')
+            current_time = lao_time.strftime('%H:%M:%S')
+            
             conn = sqlite3.connect(DB_NAME)
             conn.execute("INSERT INTO sales (transaction_date, transaction_time, product_detail, product_category, transaction_qty, unit_price, total_sales) VALUES (?,?,?,?,?,?,?)",
-                         (pd.Timestamp.now().strftime('%Y-%m-%d'), pd.Timestamp.now().strftime('%H:%M:%S'), p_name, cat_filter, qty, u_price, total))
+                         (current_date, current_time, p_name, cat_filter, qty, u_price, total))
             conn.commit(); conn.close()
-            st.success("ບັນທຶກສຳເລັດ!"); st.balloons(); st.rerun()
+            st.success(f"ບັນທຶກສຳເລັດ! (ເວລາ: {current_time})"); st.balloons(); st.rerun()
 
-# --- 7. ປະຫວັດການຂາຍ (ຄົງໄວ້ 100%) ---
+# --- 7. ປະຫວັດການຂາຍ ---
 elif menu == "📜 ປະຫວັດການຂາຍ":
     st.header("📜 ປະຫວັດການຂາຍ")
     d_search = st.date_input("ຄົ້ນຫາວັນທີ", df['transaction_date'].max())
@@ -263,15 +246,17 @@ elif menu == "📜 ປະຫວັດການຂາຍ":
     st.metric("ຍອດລວມວັນນີ້", f"฿{filtered['total_sales'].sum():,.0f}")
     st.dataframe(filtered.sort_values('id', ascending=False), use_container_width=True)
 
-# --- 8. ຈັດການສິນຄ້າ (ຄົງໄວ້ 100%) ---
+# --- 8. ຈັດການສິນຄ້າ (แก้ไขเรื่องเวลาในกรณีเพิ่มสินค้าใหม่) ---
 elif menu == "☕ ຈັດການສິນຄ້າ":
-    st.header("☕ ຈັດການເມນູສິນຄ້າ")
+    st.header("☕ ຈັດการเมนูสินค้า")
     with st.expander("➕ ເພີ່ມສິນຄ້າໃໝ່"):
         n_cat = st.selectbox("ໝວດໝູ່", ["☕ ເຄື່ອງດື່ມ", "🍰 ເບເກີລີ້", "🍽️ อาหาร"])
-        n_p = st.text_input("ຊື່ສິນຄ້າ")
-        n_pr = st.number_input("ລາຄາ", min_value=0.0)
+        n_p = st.text_input("ຊື່ສินค้า")
+        n_pr = st.number_input("ราคา", min_value=0.0)
         if st.button("💾 Save Product"):
+            # ตั้งค่าเวลาเป็นประเทศลาว
+            lao_time = pd.Timestamp.now() + timedelta(hours=7)
             conn = sqlite3.connect(DB_NAME)
             conn.execute("INSERT INTO sales (transaction_date, transaction_time, product_detail, product_category, transaction_qty, unit_price, total_sales) VALUES (?,?,?,?,?,?,?)",
-                         (pd.Timestamp.now().strftime('%Y-%m-%d'), '00:00:00', n_p, n_cat, 0, n_pr, 0))
+                         (lao_time.strftime('%Y-%m-%d'), '00:00:00', n_p, n_cat, 0, n_pr, 0))
             conn.commit(); conn.close(); st.rerun()
