@@ -5,4 +5,3 @@ openpyxl
 scikit-learn
 plotly
 requests
-st-gsheets-connection
