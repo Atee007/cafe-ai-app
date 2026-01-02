@@ -239,8 +239,8 @@ elif menu == "🔮 ຄາດຄະເນ AI":
                                title="7-Day Sales Forecast Trend", color_discrete_sequence=['#FF4B4B'])
             st.plotly_chart(fig_line, use_container_width=True)
 
-# --- 6. ບັນທຶກການຂາຍ (ຄົງໄວ້ 100%) ---
-elif menu == "📝 ບັນທຶກການຂາຍ":
+# --- 6. ບັນທຶກການຂາຍ (ฉบับแก้ไขเวลาประเทศลาว) ---
+elif menu == "📝 ບັນທຶກการขาย":
     st.header("🛒 ບັນທຶກການຂາຍໃໝ່")
     cat_filter = st.selectbox("📂 ເລືອກໝວດໝູ່", ["☕ ເຄື່ອງດື່ມ", "🍰 ເບເກີລີ້", "🍽️ ອາຫານ"])
     all_prods = df[['product_detail', 'product_category', 'unit_price']].drop_duplicates('product_detail')
@@ -254,13 +254,34 @@ elif menu == "📝 ບັນທຶກການຂາຍ":
         qty = st.number_input("ຈຳນວນ", min_value=1, value=1)
         total = qty * u_price
         
-        st.info(f"💰 ລาคาต่อหน่วย: {u_price:,.2f} ฿ | **ยอดรวม: {total:,.2f} ฿**")
+        st.info(f"💰 ລາຄາຕໍ່ໜ່ວຍ: {u_price:,.2f} ฿ | **ຍອດລວມ: {total:,.2f} ฿**")
+        
         if st.button("✅ ຢືນຢັນການຂາຍ", type="primary"):
+            # --- [จุดที่แก้ไข: ตั้งค่าเวลาลาว UTC+7] ---
+            # pd.Timestamp.utcnow() จะได้เวลาสากล แล้วบวกเพิ่ม 7 ชั่วโมงเป็นเวลาลาว
+            lao_now = pd.Timestamp.utcnow() + pd.Timedelta(hours=7)
+            current_date = lao_now.strftime('%Y-%m-%d')
+            current_time = lao_now.strftime('%H:%M:%S')
+            
             conn = sqlite3.connect(DB_NAME)
-            conn.execute("INSERT INTO sales (transaction_date, transaction_time, product_detail, product_category, transaction_qty, unit_price, total_sales) VALUES (?,?,?,?,?,?,?)",
-                         (pd.Timestamp.now().strftime('%Y-%m-%d'), pd.Timestamp.now().strftime('%H:%M:%S'), p_name, cat_filter, qty, u_price, total))
-            conn.commit(); conn.close()
-            st.success("ບັນທຶກສຳເລັດ!"); st.balloons(); st.rerun()
+            conn.execute("""
+                INSERT INTO sales (
+                    transaction_date, 
+                    transaction_time, 
+                    product_detail, 
+                    product_category, 
+                    transaction_qty, 
+                    unit_price, 
+                    total_sales
+                ) VALUES (?,?,?,?,?,?,?)""",
+                (current_date, current_time, p_name, cat_filter, qty, u_price, total)
+            )
+            conn.commit()
+            conn.close()
+            
+            st.success(f"ບັນທຶກສຳເລັດ! (ວັນທີ: {current_date} ເວລາ: {current_time})")
+            st.balloons()
+            st.rerun()
 
 # --- 7. ປະຫວັດການຂາຍ (ຄົງໄວ້ 100%) ---
 elif menu == "📜 ປະຫວັດການຂາຍ":
